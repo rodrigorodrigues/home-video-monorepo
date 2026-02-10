@@ -16,10 +16,14 @@ services:
       context: ./apps/api
     env_file:
       - ./.env.docker.api.prod
+    environment:
+      - ADMIN_PASSWORD_HASH_FILE=/run/secrets/admin_password_hash
     ports:
       - "8080:8080"
     volumes:
       - /home/gandalf/Videos:/videos
+    secrets:
+      - admin_password_hash
     profiles:
       - prod
 
@@ -51,3 +55,7 @@ services:
       - api
     profiles:
       - prod
+
+secrets:
+  admin_password_hash:
+    file: ./secrets/admin_password_hash

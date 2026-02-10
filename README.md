@@ -44,7 +44,8 @@ If the FE is still calling `localhost`, update the **correct** env file and rest
 
 2. Docker Compose bcrypt hash truncated
    - Cause: `$` in hash is treated as env interpolation.
-   - Fix: escape `$` as `$$` in `.env.docker`.
+   - Fix: escape `$` as `$$` in `.env.docker`, or move the hash into a Docker secret.
+   - If you want this behavior documented in `pi-context.md`, add a note there.
 
 3. Cookies not set in dev
    - Ensure `COOKIE_SECURE=false` and `COOKIE_SAMESITE=Lax` for local HTTP.

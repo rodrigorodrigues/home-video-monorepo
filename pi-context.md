@@ -66,6 +66,18 @@ sed -i.bak 's/^REACT_APP_SERVER_HOST=.*/REACT_APP_SERVER_HOST=192.168.68.120/' /
 sed -i.bak 's/^REACT_APP_SERVER_PROTOCOL=.*/REACT_APP_SERVER_PROTOCOL=http/' /home/gandalf/Projects/home-video-monorepo/.env.docker.web.prod
 ```
 
+### Admin Password Hash (Docker Secret)
+
+Store the bcrypt hash in a Docker secret file instead of `.env`:
+
+```bash
+mkdir -p /home/gandalf/Projects/home-video-monorepo/secrets
+printf '%s' '<bcrypt-hash>' > /home/gandalf/Projects/home-video-monorepo/secrets/admin_password_hash
+```
+
+The `docker-compose.yml` mounts this secret at `/run/secrets/admin_password_hash`,
+and the API reads it via `ADMIN_PASSWORD_HASH_FILE`.
+
 ## 3. Video Path + Volume Mount
 
 Ensure the folder exists:
@@ -109,3 +121,22 @@ http://192.168.68.120:3000
 Expected behavior:
 - FE will call API at `http://192.168.68.120:8080` automatically in development mode.
 - For production, ensure `REACT_APP_SERVER_HOST` in `.env.docker.web.prod` matches the same IP.
+
+## Common Issue: Images Missing on Phone (but OK on PC)
+
+Symptom:
+- Phone shows broken images, while the PC browser works.
+- Broken image URL looks like `http://localhost:8080/public/...`
+
+Cause:
+- API image URLs are built using `localhost`. On a phone, `localhost` refers to the phone, not the Pi.
+
+Fix (on Pi):
+```bash
+sed -i.bak 's/^IMAGES_HOST_SERVER=.*/IMAGES_HOST_SERVER=192.168.68.120/' /home/gandalf/Projects/home-video-monorepo/.env.docker.api.prod
+sed -i.bak 's/^IMAGES_PORT_SERVER=.*/IMAGES_PORT_SERVER=8080/' /home/gandalf/Projects/home-video-monorepo/.env.docker.api.prod
+sed -i.bak 's|^IMAGE_FALLBACK_BASE_URL=.*|IMAGE_FALLBACK_BASE_URL=http://192.168.68.120:8080/public|' /home/gandalf/Projects/home-video-monorepo/.env.docker.api.prod
+
+cd /home/gandalf/Projects/home-video-monorepo
+docker compose --profile prod up --build -d --force-recreate
+```

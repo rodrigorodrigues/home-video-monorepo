@@ -1,3 +1,1 @@
-curl -i -X POST http://192.168.68.111:8080/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"peluche"}'         
+printf '%s' '$2b$10$00.NOnXfqWk8gdPA5OjYlevOI.ySNXZHA8wb.XFSJN8bYZLh5Ph0m' > /Users/eliasjunior/Projects/portfolio/home-video-monorepo/secrets/admin_password_hash   
