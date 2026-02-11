@@ -2,6 +2,8 @@
 
 [Documentation](https://github.com/eliasjunior/home-video-docs)
 
+## Project Structure
+
 This repo contains:
 - `apps/web`: React frontend
 - `apps/api`: Node.js backend
@@ -22,13 +24,7 @@ Run both apps:
 npm run dev
 ```
 
-Restart Docker dev stack:
-```bash
-docker compose --profile dev down
-docker compose --profile dev up --build
-```
-
-## Dev Env Files (Important)
+## Environment Files
 
 Which env file is used depends on how you run the FE:
 - **Non‑Docker dev** (CRA): `apps/web/.env.development`
@@ -36,24 +32,7 @@ Which env file is used depends on how you run the FE:
 
 If the FE is still calling `localhost`, update the **correct** env file and restart the dev server.
 
-## Common Issues (Recent)
-
-1. FE calls `localhost` instead of IP
-   - Fix: set `REACT_APP_SERVER_HOST=<your-ip>` in the right env file.
-   - Restart FE (CRA or Docker).
-
-2. Docker Compose bcrypt hash truncated
-   - Cause: `$` in hash is treated as env interpolation.
-   - Fix: escape `$` as `$$` in `.env.docker`, or move the hash into a Docker secret.
-   - If you want this behavior documented in `pi-context.md`, add a note there.
-
-3. Cookies not set in dev
-   - Ensure `COOKIE_SECURE=false` and `COOKIE_SAMESITE=Lax` for local HTTP.
-   - Make sure FE and API are accessed with the **same host** (IP vs localhost).
-
-4. 401 after login in HTTP production
-   - Cause: `NODE_ENV=production` defaults secure cookies to `true`.
-   - Fix: Set `COOKIE_SECURE=false` when running HTTP (no HTTPS), or move to HTTPS and set it to `true`.
+## Service URLs
 
 Frontend dev server:
 - Default: `http://localhost:3000`
@@ -61,72 +40,115 @@ Frontend dev server:
 API:
 - Default: `http://localhost:8080`
 
-## Frontend (apps/web)
+## Docker
 
-Install and run:
+### Local Dev
+
+Restart Docker dev stack:
 ```bash
-cd apps/web
-npm install
-npm run dev
+docker compose --profile dev down
+docker compose --profile dev up --build
 ```
 
-Notes:
-- The app uses a proxy in `apps/web/package.json` for API requests.
-- If you access the FE from another device, use your machine IP for the API
-  (e.g., `http://192.168.x.x:8080`) and load the FE from the same host.
-
-## Backend (apps/api)
-
-Install and run:
-```bash
-cd apps/api
-npm install
-npm test
-npm run dev
-```
-
-### Docker (Local Dev)
-
-Build:
+Build API image:
 ```bash
 cd apps/api
 npm run docker:build
 ```
 
-Run:
+Run API image:
 ```bash
 cd apps/api
 npm run docker:run
 ```
 
-Run with env + videos mounted:
+Run API image with env + videos mounted:
 ```bash
 cd apps/api
 docker run --rm -p 8080:8080 \
   --env-file .env.docker \
-  -v /Users/eliasjunior/Downloads/Videos:/videos \
+  -v <your-path>:/videos \
   home-video-api:dev
 ```
 
-## API Environment Variables (apps/api)
+### Raspberry Pi (Prod)
 
-JWT settings (required for auth):
-```env
-JWT_ACCESS_SECRET="your-access-secret"
-JWT_REFRESH_SECRET="your-refresh-secret"
-JWT_ACCESS_TTL="15m"
-JWT_REFRESH_TTL="180d"
-```
+See Troubleshooting for Raspberry Pi issue patterns and fixes.
 
-Cookie config:
-- `COOKIE_SECURE` (true in prod; false for local HTTP)
-- `COOKIE_SAMESITE` (`Lax` by default)
-- `COOKIE_DOMAIN` (optional)
-- `IMAGE_FALLBACK_BASE_URL` (optional; default is API `/public`)
+## Troubleshooting
 
-Cookie notes:
-- Local dev over HTTP should use `COOKIE_SECURE=false` and `COOKIE_SAMESITE=Lax`.
-- Cross-site cookies require `COOKIE_SAMESITE=None` **and** `COOKIE_SECURE=true` (HTTPS).
+1. FE calls `localhost` instead of IP
+   - Fix: set `REACT_APP_SERVER_HOST=<your-ip>` in the right env file (see Environment Files).
+   - Restart FE (CRA or Docker).
+
+2. Cookies not set in dev
+   - Ensure `COOKIE_SECURE=false` and `COOKIE_SAMESITE=Lax` for local HTTP.
+   - Make sure FE and API are accessed with the **same host** (IP vs localhost).
+
+3. 401 after login in HTTP production
+   - Cause: `NODE_ENV=production` defaults secure cookies to `true`.
+   - Fix: Set `COOKIE_SECURE=false` when running HTTP (no HTTPS), or move to HTTPS and set it to `true`.
+
+### Docker (Local Dev)
+
+Issue: Docker Compose bcrypt hash truncated  
+Cause: `$` in hash is treated as env interpolation.  
+Fix: escape `$` as `$$` in `.env.docker`, or move the hash into a Docker secret.
+
+### Raspberry Pi (Prod)
+
+#### Symptoms we hit
+- FE loads, but API errors like `GET https://localhost:8080/health net::ERR_SSL_PROTOCOL_ERROR`
+- API logs show `/videos/Movies does not exist or cannot access it`
+- `curl -I http://localhost:3000` fails even though containers are up
+
+#### Fixes applied
+
+1. Fix API volume mount to the Pi path
+   - In `docker-compose.yml` (prod `api`), change:
+     - `- <your-path>:/videos`
+     - to `- /home/gandalf/Videos:/videos`
+
+2. Fix web container port mapping
+   - The web container uses nginx (listens on `80` internally).
+   - In `docker-compose.yml` (prod `web`), change:
+     - `"3000:3000"`
+     - to `"3000:80"`
+
+3. Ensure video folder structure exists on the Pi
+   ```bash
+   mkdir -p /home/gandalf/Videos/Movies/TestMovie
+   mkdir -p /home/gandalf/Videos/Series
+   ```
+
+4. Recreate containers to apply changes
+   ```bash
+   cd /home/gandalf/Projects/home-video-monorepo
+   docker compose --profile prod up --build -d --force-recreate
+   ```
+
+#### Quick verification
+
+- FE should respond:
+  ```bash
+  curl -I http://localhost:3000
+  ```
+- API container should see the videos:
+  ```bash
+  docker exec -it home-video-monorepo-api-1 sh -c "ls -la /videos && ls -la /videos/Movies"
+  ```
+
+#### Expected browser access
+- Open from another device:
+  ```
+  http://<PI-IP>:3000
+  ```
+
+#### Automation (TODO)
+- Use the Pi script below to run all checks and fixes above (paths, ports, folders, rebuild, verify):
+  ```bash
+  /home/gandalf/Projects/home-video-monorepo/scripts/pi-troubleshoot.sh
+  ```
 
 ## Authentication Overview
 
@@ -177,6 +199,26 @@ async function refresh() {
   return res.json();
 }
 ```
+
+## API Environment Variables (apps/api)
+
+JWT settings (required for auth):
+```env
+JWT_ACCESS_SECRET="your-access-secret"
+JWT_REFRESH_SECRET="your-refresh-secret"
+JWT_ACCESS_TTL="15m"
+JWT_REFRESH_TTL="180d"
+```
+
+Cookie config:
+- `COOKIE_SECURE` (true in prod; false for local HTTP)
+- `COOKIE_SAMESITE` (`Lax` by default)
+- `COOKIE_DOMAIN` (optional)
+- `IMAGE_FALLBACK_BASE_URL` (optional; default is API `/public`)
+
+Cookie notes:
+- Local dev over HTTP should use `COOKIE_SECURE=false` and `COOKIE_SAMESITE=Lax`.
+- Cross-site cookies require `COOKIE_SAMESITE=None` **and** `COOKIE_SECURE=true` (HTTPS).
 
 ## Endpoints
 
@@ -268,57 +310,26 @@ Notes:
 - Progress is stored locally on the API in `data/progress.json`. Restarting the server
   does not clear progress, but deleting the file will.
 
-## Docker Troubleshooting (Raspberry Pi)
+## Frontend (apps/web)
 
-### Symptoms we hit
-- FE loads, but API errors like `GET https://localhost:8080/health net::ERR_SSL_PROTOCOL_ERROR`
-- API logs show `/videos/Movies does not exist or cannot access it`
-- `curl -I http://localhost:3000` fails even though containers are up
+Run in isolation:
+```bash
+cd apps/web
+npm install
+npm run dev
+```
 
-### Fixes applied
+Notes:
+- The app uses a proxy in `apps/web/package.json` for API requests.
+- If you access the FE from another device, use your machine IP for the API
+  (e.g., `http://192.168.x.x:8080`) and load the FE from the same host.
 
-1. Fix API volume mount to the Pi path
-   - In `docker-compose.yml` (prod `api`), change:
-     - `- /Users/eliasjunior/Downloads/Videos:/videos`
-     - to `- /home/gandalf/Videos:/videos`
+## Backend (apps/api)
 
-2. Fix web container port mapping
-   - The web container uses nginx (listens on `80` internally).
-   - In `docker-compose.yml` (prod `web`), change:
-     - `"3000:3000"`
-     - to `"3000:80"`
-
-3. Ensure video folder structure exists on the Pi
-   ```bash
-   mkdir -p /home/gandalf/Videos/Movies/TestMovie
-   mkdir -p /home/gandalf/Videos/Series
-   ```
-
-4. Recreate containers to apply changes
-   ```bash
-   cd /home/gandalf/Projects/home-video-monorepo
-   docker compose --profile prod up --build -d --force-recreate
-   ```
-
-### Quick verification
-
-- FE should respond:
-  ```bash
-  curl -I http://localhost:3000
-  ```
-- API container should see the videos:
-  ```bash
-  docker exec -it home-video-monorepo-api-1 sh -c "ls -la /videos && ls -la /videos/Movies"
-  ```
-
-### Expected browser access
-- Open from another device:
-  ```
-  http://<PI-IP>:3000
-  ```
-
-### Automation (TODO)
-- Use the Pi script below to run all checks and fixes above (paths, ports, folders, rebuild, verify):
-  ```bash
-  /home/gandalf/Projects/home-video-monorepo/scripts/pi-troubleshoot.sh
-  ```
+Run in isolation:
+```bash
+cd apps/api
+npm install
+npm test
+npm run dev
+```
