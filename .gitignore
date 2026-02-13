@@ -1,2 +1,15 @@
 node_modules
 secrets/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Local/generated artifacts
+notes.md
+tmp/
+apps/web/target/
+apps/api/report.json
+.codex/environments/environment.toml
+apps/api/.codex/environments/environment.toml
+apps/web/.codex/environments/environment.toml
