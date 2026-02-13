@@ -17,6 +17,9 @@ describe("config", () => {
     process.env.SERVER_PORT = "8080";
     process.env.IMG_FOLDER_FALL_BACK = "/Images";
     process.env.VIDEO_PATH = "/videos";
+    process.env.VIDEO_PATH_LOCAL = "/videos-local";
+    process.env.VIDEO_PATH_GDRIVE = "/videos-gdrive";
+    process.env.VIDEO_SOURCE_PROFILE = "local";
     process.env.MOVIES_DIR = "Movies";
     process.env.SERIES_DIR = "Series";
     process.env.IMAGES_PORT_SERVER = "80";
@@ -70,5 +73,41 @@ describe("config", () => {
     const result = config();
 
     expect(result.host).toBe("127.0.0.1");
+  });
+
+  it("uses local path when profile is local", () => {
+    process.env.NODE_ENV = "test";
+    process.env.VIDEO_SOURCE_PROFILE = "local";
+    process.env.VIDEO_PATH_LOCAL = "/videos-local";
+
+    const config = require("./config").default;
+    const result = config();
+
+    expect(result.videoSourceProfile).toBe("local");
+    expect(result.videosPath).toBe("/videos-local");
+  });
+
+  it("uses gdrive path when profile is gdrive", () => {
+    process.env.NODE_ENV = "test";
+    process.env.VIDEO_SOURCE_PROFILE = "gdrive";
+    process.env.VIDEO_PATH_GDRIVE = "/videos-gdrive";
+
+    const config = require("./config").default;
+    const result = config();
+
+    expect(result.videoSourceProfile).toBe("gdrive");
+    expect(result.videosPath).toBe("/videos-gdrive");
+  });
+
+  it("falls back to local path when selected profile has no configured path", () => {
+    process.env.NODE_ENV = "test";
+    process.env.VIDEO_SOURCE_PROFILE = "gdrive";
+    delete process.env.VIDEO_PATH_GDRIVE;
+
+    const config = require("./config").default;
+    const result = config();
+
+    expect(result.videoSourceProfile).toBe("gdrive");
+    expect(result.videosPath).toBe("/videos-local");
   });
 });

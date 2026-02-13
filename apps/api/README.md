@@ -32,6 +32,18 @@ docker run --rm -p 8080:8080 \
 
 ## Environment Variables
 
+Video source profile:
+
+```env
+VIDEO_SOURCE_PROFILE="local" # "local" or "gdrive"
+VIDEO_PATH_LOCAL="/path/to/local/videos"
+VIDEO_PATH_GDRIVE="/path/to/google-drive-mounted/videos"
+```
+
+Notes:
+- `VIDEO_PATH` is still supported for backward compatibility.
+- If `VIDEO_SOURCE_PROFILE` points to a path that is not set, the API falls back to the local path.
+
 JWT settings (required for auth):
 
 ```env

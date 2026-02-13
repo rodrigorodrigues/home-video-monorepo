@@ -1,0 +1,56 @@
+sequenceDiagram
+  autonumber
+  participant Client
+  participant Router as VideosRouter (Controller)
+  participant UseCase as FileUseCase (DataAccess)
+  participant FileLib as FileLib (fs adapter)
+  participant FS as File System
+
+  alt GET /videos
+    Client->>Router: GET /videos
+    Router->>UseCase: getVideos({ baseLocation })
+    UseCase->>FileLib: isDirExist(baseLocation)
+    FileLib->>FS: accessSync(baseLocation)
+    FS-->>FileLib: exists / not exists
+    UseCase->>FileLib: readDirectory(baseLocation)
+    FileLib->>FS: readdirSync(baseLocation, withFileTypes)
+    FS-->>FileLib: dir entries
+    loop each subfolder
+      UseCase->>FileLib: readDirectory(subfolder)
+      FileLib->>FS: readdirSync(subfolder, withFileTypes)
+      FS-->>FileLib: file entries
+      UseCase->>UseCase: filter valid ext + must contain video
+      UseCase->>UseCase: mapMedia()
+    end
+    UseCase-->>Router: { byId, allIds }
+    Router-->>Client: 200 JSON (or 500 when empty/error)
+  end
+
+  alt GET /videos/:id
+    Client->>Router: GET /videos/:id
+    Router->>Router: read movieMap (memory)
+    alt map empty
+      Router->>UseCase: getVideos({ baseLocation })
+      UseCase-->>Router: { byId, allIds }
+      Router->>Router: setMovieMap()
+    end
+    Router->>Router: lookup id in map
+    Router-->>Client: 200 JSON (or 501 if missing)
+  end
+
+  alt GET /videos/:folder/:fileName
+    Client->>Router: GET /videos/:folder/:fileName (+ optional Range)
+    Router->>Router: build absolute file path
+    Router->>UseCase: getFileDirInfo(fileAbsPath)
+    UseCase->>FileLib: readFileInfo(fileAbsPath)
+    FileLib->>FS: statSync(fileAbsPath)
+    FS-->>FileLib: file size
+    alt Range header present
+      Router->>Router: compute start/end + set 206 headers
+      Router->>FS: createReadStream(start,end)
+    else no Range
+      Router->>Router: set 200 full-file headers
+      Router->>FS: createReadStream(full file)
+    end
+    FS-->>Client: streamed bytes
+  end

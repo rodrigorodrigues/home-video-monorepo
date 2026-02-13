@@ -35,6 +35,8 @@ function buildAppWithEnv(baseDir) {
   process.env.SERVER_PORT = "8080";
   process.env.IMG_FOLDER_FALL_BACK = "/Images";
   process.env.VIDEO_PATH = baseDir;
+  process.env.VIDEO_PATH_LOCAL = baseDir;
+  process.env.VIDEO_SOURCE_PROFILE = "local";
   process.env.MOVIES_DIR = "Movies";
   process.env.SERIES_DIR = "Series";
   process.env.IMAGES_PORT_SERVER = "80";

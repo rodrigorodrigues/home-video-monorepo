@@ -18,6 +18,9 @@ export default function config() {
     SERVER_PORT,
     IMG_FOLDER_FALL_BACK,
     VIDEO_PATH,
+    VIDEO_PATH_LOCAL,
+    VIDEO_PATH_GDRIVE,
+    VIDEO_SOURCE_PROFILE,
     SERVER_PROTOCOL,
     MOVIES_DIR,
     SERIES_DIR,
@@ -40,7 +43,22 @@ export default function config() {
   result.host = getLocalIPAddress();
   // in case you want read the images/posters from the another folder.
   result.imgFolderFallBack = IMG_FOLDER_FALL_BACK;
-  result.videosPath = VIDEO_PATH;
+  const normalizedProfile = String(VIDEO_SOURCE_PROFILE || "local")
+    .trim()
+    .toLowerCase();
+  const localVideoPath = VIDEO_PATH_LOCAL || VIDEO_PATH;
+  const profileToPath = {
+    local: localVideoPath,
+    gdrive: VIDEO_PATH_GDRIVE,
+  };
+  const selectedVideoPath = profileToPath[normalizedProfile];
+  result.videoSourceProfile = normalizedProfile;
+  result.videosPath = selectedVideoPath || localVideoPath;
+  if (!selectedVideoPath) {
+    logD(
+      `VIDEO_SOURCE_PROFILE=${normalizedProfile} has no path configured. Falling back to local path.`
+    );
+  }
   result.moviesDir = MOVIES_DIR;
   result.seriesDir = SERIES_DIR;
   result.baseLocation = os.homedir();
