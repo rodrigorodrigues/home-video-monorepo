@@ -5,6 +5,10 @@
 
 This guide is the quickest manual path to run Home Video on Raspberry Pi.
 
+Primary startup helper script for this guide:
+
+- `./scripts/pi/preflight-prod.sh`
+
 It intentionally does **not** use:
 
 - `scripts/pi/bootstrap.sh`
@@ -25,6 +29,7 @@ Use this when you want only the basics to get the app running now.
   - `.env.docker.web.prod`
 - [ ] Set minimal API prod env values in `.env.docker.api.prod`:
   - `NODE_ENV=production`
+  - `SERVER_HOST=<PI_IP>`
   - `SERVER_PROTOCOL=http`
   - `SERVER_PORT=8080`
   - `VIDEO_SOURCE_PROFILE=gdrive`
