@@ -48,10 +48,10 @@ Use this when you want only the basics to get the app running now.
   - `ls -la /mnt/gdrive-videos`
   - `ls -la /mnt/gdrive-videos/Movies`
   - `ls -la /mnt/gdrive-videos/Series`
-- [ ] Create admin bcrypt secret file expected by compose:
-  - `mkdir -p secrets`
-  - `npm --prefix apps/api ci`
-  - `npm --prefix apps/api run hash:password -- "<strong-password>" > secrets/admin_password_hash`
+- [ ] Run preflight for manual prod startup:
+  - `./scripts/pi/preflight-prod.sh`
+  - If secret is missing, auto-generate it with:
+    - `ADMIN_PASSWORD_PLAIN="<strong-password>" ./scripts/pi/preflight-prod.sh`
 - [ ] Start app manually:
   - `docker compose --profile prod up -d --build api web`
 - [ ] Verify app:
@@ -63,7 +63,27 @@ Use this when you want only the basics to get the app running now.
 
 - Without `systemd`, the `rclone mount` is not persistent on reboot.
 - Keep the terminal/session running where `rclone mount` is running, or remount manually after restart.
-- If auth fails, verify `secrets/admin_password_hash` exists and is non-empty.
+- Preflight validates `secrets/admin_password_hash` and checks bcrypt format.
+
+## Auth Notes (Why This Secret File Exists)
+
+- JWT is used for authentication:
+  - access token for protected requests
+  - refresh token to issue new access tokens
+- For simplicity in this project, the admin password is configured via a bcrypt hash stored in:
+  - `secrets/admin_password_hash`
+- This file is mounted into the API container as:
+  - `/run/secrets/admin_password_hash`
+
+### Proper Production Scenario
+
+- Use HTTPS end-to-end (reverse proxy + valid TLS cert).
+- Keep `COOKIE_SECURE=true` in HTTPS deployments.
+- Store JWT secrets and admin hash in a proper secret manager or orchestrator secrets:
+  - Docker Swarm/Kubernetes secrets, Vault, AWS/GCP/Azure secret services.
+- Restrict secret access by least privilege.
+- Rotate secrets periodically and after incidents.
+- Avoid storing secrets in git-tracked files or plaintext env files.
 
 ## Next Step (Optional)
 
