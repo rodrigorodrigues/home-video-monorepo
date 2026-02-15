@@ -1,6 +1,6 @@
 # Backend Media Scanning
 
-[Back to docs index](../README.md)
+[Back to root README](../../README.md)
 
 
 ## Supported Layouts

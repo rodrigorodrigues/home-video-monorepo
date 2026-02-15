@@ -1,6 +1,6 @@
 # Raspberry Pi One-Click Bootstrap
 
-[Back to docs index](../README.md)
+[Back to root README](../../README.md)
 
 
 This guide sets up a fresh Raspberry Pi to auto-start:

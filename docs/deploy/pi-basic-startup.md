@@ -1,6 +1,6 @@
 # Raspberry Pi Basic Startup (No Bootstrap, No Services)
 
-[Back to docs index](../README.md)
+[Back to root README](../../README.md)
 
 
 This guide is the quickest manual path to run Home Video on Raspberry Pi.

@@ -1,6 +1,6 @@
 # Google Drive with rclone
 
-[Back to docs index](../README.md)
+[Back to root README](../../README.md)
 
 
 The API reads local filesystem paths. Google Drive support is done by mounting Drive with `rclone` on the host and exposing that mount to Docker.

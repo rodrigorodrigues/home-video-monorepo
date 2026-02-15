@@ -1,6 +1,6 @@
 # Authentication
 
-[Back to docs index](../README.md)
+[Back to root README](../../README.md)
 
 
 ## Overview

@@ -24,6 +24,16 @@ Run both apps:
 npm run dev
 ```
 
+## Quick Start (Raspberry Pi)
+
+For Raspberry Pi, start with the manual guide first (recommended):
+
+- [`docs/deploy/pi-basic-startup.md`](docs/deploy/pi-basic-startup.md)
+
+After manual startup is stable, move to one-click/bootstrap + services:
+
+- [`docs/deploy/pi-one-click-bootstrap.md`](docs/deploy/pi-one-click-bootstrap.md)
+
 ## Service URLs
 
 - Frontend dev server: `http://localhost:3000`

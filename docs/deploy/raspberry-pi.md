@@ -1,6 +1,6 @@
 # Raspberry Pi Deployment
 
-[Back to docs index](../README.md)
+[Back to root README](../../README.md)
 
 
 This page covers Docker-based production deployment on Raspberry Pi.
