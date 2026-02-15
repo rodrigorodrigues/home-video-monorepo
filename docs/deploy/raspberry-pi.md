@@ -2,6 +2,10 @@
 
 This page covers Docker-based production deployment on Raspberry Pi.
 
+For fresh machine provisioning and reboot-safe startup, use:
+
+- [Pi one-click bootstrap](pi-one-click-bootstrap.md)
+
 ## Production Compose
 
 Recreate prod services after config changes:
