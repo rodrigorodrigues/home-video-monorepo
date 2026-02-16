@@ -1,10 +1,11 @@
 import express from "express";
 import { AUTH_USER, validateCredentials } from "../auth/user";
 import * as defaultTokenService from "../auth/tokenService";
-import { buildCookieOptions } from "../auth/cookiePolicy";
+import { createAuthCookieService } from "../auth/authCookieService";
+import { generateCsrfToken } from "../auth/csrfToken";
+import { createAuthLoginService } from "../auth/authLoginService";
 import { createAuthSessionService } from "../auth/authSessionService";
 import config from "../config";
-import crypto from "crypto";
 import { getCookie } from "../common/Util";
 import { ensureCsrf } from "../middleware/csrf";
 
@@ -15,6 +16,12 @@ const COOKIE_CSRF = "csrf_token";
 export function createAuthRouter({
   refreshTokenStore,
   tokenService = defaultTokenService,
+  csrfTokenGenerator = generateCsrfToken,
+  authCookieService,
+  authLoginService = createAuthLoginService({
+    tokenService,
+    refreshTokenStore,
+  }),
   authSessionService = createAuthSessionService({
     tokenService,
     refreshTokenStore,
@@ -22,6 +29,16 @@ export function createAuthRouter({
 }) {
   const router = express.Router();
   const cfg = config();
+  const cookies =
+    authCookieService ||
+    createAuthCookieService({
+      cfg,
+      cookieNames: {
+        access: COOKIE_ACCESS,
+        refresh: COOKIE_REFRESH,
+        csrf: COOKIE_CSRF,
+      },
+    });
 
   router.post("/login", async (req, res) => {
     const { username, password } = req.body || {};
@@ -30,42 +47,19 @@ export function createAuthRouter({
       return res.status(401).json({ message: "Invalid credentials" }).end();
     }
 
-    const { accessToken, refreshToken, jti, refreshExpiresAtMs } =
-      tokenService.issueTokens({
-        userId: AUTH_USER.id,
-        username: AUTH_USER.username,
-      });
-
-    refreshTokenStore.save({
-      jti,
+    const loginSession = authLoginService.createLoginSession({
       userId: AUTH_USER.id,
-      expiresAtMs: refreshExpiresAtMs,
+      username: AUTH_USER.username,
     });
 
-    const csrfToken = crypto.randomBytes(32).toString("hex");
-    res.cookie(
-      COOKIE_ACCESS,
-      accessToken,
-      buildCookieOptions({ isHttpOnly: true, cfg })
-    );
-    res.cookie(
-      COOKIE_REFRESH,
-      refreshToken,
-      buildCookieOptions({ isHttpOnly: true, path: "/auth", cfg })
-    );
-    res.cookie(
-      COOKIE_CSRF,
-      csrfToken,
-      buildCookieOptions({ isHttpOnly: false, cfg })
-    );
+    cookies.setAuthCookies({ res, session: loginSession });
 
-    return res.status(200).json({ accessToken }).end();
+    return res.status(200).json({ accessToken: loginSession.accessToken }).end();
   });
 
   router.post("/refresh", (req, res) => {
     const { refreshToken: refreshTokenBody } = req.body || {};
-    const refreshToken =
-      refreshTokenBody || getCookie(req, COOKIE_REFRESH);
+    const refreshToken = refreshTokenBody || getCookie(req, COOKIE_REFRESH);
     if (!refreshToken) {
       return res.status(400).json({ message: "Missing refresh token" }).end();
     }
@@ -88,30 +82,22 @@ export function createAuthRouter({
         .end();
     }
 
-    const csrfToken = crypto.randomBytes(32).toString("hex");
-    res.cookie(
-      COOKIE_ACCESS,
-      refreshResult.accessToken,
-      buildCookieOptions({ isHttpOnly: true, cfg })
-    );
-    res.cookie(
-      COOKIE_REFRESH,
-      refreshResult.refreshToken,
-      buildCookieOptions({ isHttpOnly: true, path: "/auth", cfg })
-    );
-    res.cookie(
-      COOKIE_CSRF,
-      csrfToken,
-      buildCookieOptions({ isHttpOnly: false, cfg })
-    );
+    const session = {
+      accessToken: refreshResult.accessToken,
+      refreshToken: refreshResult.refreshToken,
+      csrfToken: csrfTokenGenerator(),
+    };
+    cookies.setAuthCookies({ res, session });
 
-    return res.status(200).json({ accessToken: refreshResult.accessToken }).end();
+    return res
+      .status(200)
+      .json({ accessToken: refreshResult.accessToken })
+      .end();
   });
 
   router.post("/logout", (req, res) => {
     const { refreshToken: refreshTokenBody } = req.body || {};
-    const refreshToken =
-      refreshTokenBody || getCookie(req, COOKIE_REFRESH);
+    const refreshToken = refreshTokenBody || getCookie(req, COOKIE_REFRESH);
     if (!refreshToken) {
       return res.status(400).json({ message: "Missing refresh token" }).end();
     }
@@ -125,12 +111,7 @@ export function createAuthRouter({
 
     authSessionService.revokeRefreshSession({ refreshToken });
 
-    res.clearCookie(COOKIE_ACCESS, buildCookieOptions({ isHttpOnly: true, cfg }));
-    res.clearCookie(
-      COOKIE_REFRESH,
-      buildCookieOptions({ isHttpOnly: true, path: "/auth", cfg })
-    );
-    res.clearCookie(COOKIE_CSRF, buildCookieOptions({ isHttpOnly: false, cfg }));
+    cookies.clearAuthCookies(res);
     return res.status(200).json({ message: "Logged out" }).end();
   });
 
