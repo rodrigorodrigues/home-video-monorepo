@@ -1,9 +1,9 @@
 import express from "express";
 import bodyParser from "body-parser";
 import cors from "cors";
-import VideosRouter from "./src/routers/VideosRouter";
+import { createVideosRouter } from "./src/routers/VideosRouter";
 import ImagesRouter from "./src/routers/ImagesRouter";
-import CaptionsRouter from "./src/routers/CaptionsRouter";
+import { createCaptionsRouter } from "./src/routers/CaptionsRouter";
 import { config } from "./src/common/AppServerConstant";
 import { logD } from "./src/common/MessageUtil";
 import { loadRemoteJsonFile } from "./src/libs/HttpLib";
@@ -11,8 +11,11 @@ import path from "path";
 import { setMoviesMap } from "./src/libs/MemoryLib";
 import { createAuthRouter } from "./src/routers/AuthRouter";
 import { createInMemoryRefreshTokenStore } from "./src/auth/refreshTokenStore";
-import { requireAuth } from "./src/middleware/auth";
+import { createRequireAuth } from "./src/middleware/auth";
+import { createTokenService } from "./src/auth/tokenService";
 import { createProgressRouter } from "./src/routers/ProgressRouter";
+import * as fileUseCasesModule from "./src/domain/fileUseCases";
+import * as streamingUseCasesModule from "./src/domain/streamingUseCases";
 
 let app = express();
 
@@ -59,15 +62,36 @@ app.get("/favicon.ico", (_req, res) => {
 });
 
 const refreshTokenStore = createInMemoryRefreshTokenStore();
-app.use("/auth", createAuthRouter({ refreshTokenStore }));
+const tokenService = createTokenService();
+const fileService = fileUseCasesModule.createFileUseCases
+  ? fileUseCasesModule.createFileUseCases()
+  : fileUseCasesModule.default;
+const streamService = streamingUseCasesModule.createStreamingUseCases
+  ? streamingUseCasesModule.createStreamingUseCases()
+  : streamingUseCasesModule.default;
+const requireAuth = createRequireAuth({ tokenService });
+app.use("/auth", createAuthRouter({ refreshTokenStore, tokenService }));
 
 app.use((req, _res, next) => {
   if (req.path.startsWith("/public/")) return next();
   return requireAuth(req, _res, next);
 });
-app.use("/", VideosRouter);
+app.use(
+  "/",
+  createVideosRouter({
+    dataAccess: fileService,
+    streamingData: streamService,
+  })
+);
 app.use("/", ImagesRouter);
-app.use("/", CaptionsRouter);
+app.use(
+  "/",
+  createCaptionsRouter({
+    appConfig: config,
+    fileService,
+    streamService,
+  })
+);
 app.use("/", createProgressRouter());
 
 if (process.env.NODE_ENV !== "test") {

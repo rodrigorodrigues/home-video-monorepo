@@ -1,10 +1,10 @@
 import jwt from "jsonwebtoken";
+import { parseDurationToMs } from "../common/timeUtil";
 
 describe("tokenService", () => {
   let issueTokens;
   let verifyAccessToken;
   let verifyRefreshToken;
-  let parseDurationToMs;
   let createTokenService;
 
   beforeEach(async () => {
@@ -17,7 +17,6 @@ describe("tokenService", () => {
       issueTokens,
       verifyAccessToken,
       verifyRefreshToken,
-      parseDurationToMs,
       createTokenService,
     } = await import("./tokenService.js"));
   });

@@ -2,7 +2,6 @@ import crypto from "crypto";
 import jwtTokenProvider from "./providers/jwtTokenProvider";
 import { createTokenConfig } from "./tokenConfig";
 import { parseDurationToMs } from "../common/timeUtil";
-export { parseDurationToMs } from "../common/timeUtil";
 
 export function createTokenService({
   tokenProvider = jwtTokenProvider,
