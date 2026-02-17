@@ -103,6 +103,18 @@ describe("FileUseCase (integration-lite)", () => {
     expect(result.name).toBe("Episode1.mp4");
   });
 
+  it("throws when getVideo folderName is invalid", () => {
+    const seriesDir = path.join(baseDir, "Series");
+    fs.mkdirSync(seriesDir, { recursive: true });
+
+    expect(() =>
+      fileUseCase.getVideo({
+        baseLocation: seriesDir,
+        folderName: "invalid-format",
+      })
+    ).toThrow("Invalid series folderName format");
+  });
+
   it("throws and logs when readFileInfo fails", () => {
     const fileUseCaseWithMock = FileUseCase({
       FileApi: {

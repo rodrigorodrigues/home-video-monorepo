@@ -61,9 +61,12 @@ export default function FileUseCase({ FileApi }) {
       );
     },
     getVideo: function ({ baseLocation, folderName }) {
-      //TODO validate folderName
-      const parentFolder = folderName.split("__")[0];
-      const childFolder = folderName.split("__")[1];
+      const [parentFolder, childFolder] = String(folderName || "").split("__");
+      if (!parentFolder || !childFolder) {
+        throw new Error(
+          "Invalid series folderName format. Expected '<parent>__<child>'."
+        );
+      }
       const files = loadFiles(`${parentFolder}/${childFolder}`, baseLocation);
       const media = mapMedia({ files, folderName: childFolder, fileExtEqual });
       media.parentId = parentFolder;
