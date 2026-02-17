@@ -12,12 +12,76 @@ import { DEFAULT_ENCODING } from "../../common/AppServerConstant";
 export default function FileUseCase({ FileApi }) {
   const { readDirectory, isDirExist, fileExtEqual, readFile, readFileInfo } =
     FileApi;
+  const createEmptyTable = () => ({ byId: {}, allIds: [] });
   const loadFiles = (folderName, baseLocation) =>
     getFilesFolder(`${baseLocation}/${folderName}`, readDirectory);
   const getValidFileList = (folderName, baseLocation) => {
     // video, subtitles, img
     return filterValidFiles(loadFiles(folderName, baseLocation), fileExtEqual);
   };
+
+  const deriveMediaId = (videoName) => {
+    const fileExt = fileExtEqual(videoName);
+    return videoName.slice(0, videoName.length - fileExt.length);
+  };
+
+  const listFolderMedia = (baseLocation) => {
+    const allFolders = getFolderName(baseLocation, { readDirectory });
+    const validFilesByFolder = allFolders.reduce((acc, folderName) => {
+      acc[folderName] = getValidFileList(folderName, baseLocation);
+      return acc;
+    }, {});
+    const hasValidFiles = (folderName) => validFilesByFolder[folderName].length > 0;
+    const hasVideoInFolder = (folderName) =>
+      validFilesByFolder[folderName].some((fileName) =>
+        isThereVideoFile(fileName, fileExtEqual)
+      );
+    const buildFolderTable = (prev, folderName) => {
+      const files = loadFiles(folderName, baseLocation);
+      const media = mapMedia({ files, folderName, fileExtEqual });
+      prev.byId[folderName] = media;
+      prev.allIds.push(media.id);
+      return prev;
+    };
+
+    return allFolders
+      .filter(hasValidFiles)
+      .filter(hasVideoInFolder)
+      .reduce(buildFolderTable, createEmptyTable());
+  };
+
+  const listFlatMedia = ({ baseLocation, existingTable }) => {
+    const topLevelFiles = readDirectory(baseLocation)
+      .filter((item) => !item.isDirectory())
+      .map((item) => item.name);
+    const validTopLevelFiles = filterValidFiles(topLevelFiles, fileExtEqual);
+    const topLevelVideoFiles = validTopLevelFiles.filter((fileName) =>
+      isThereVideoFile(fileName, fileExtEqual)
+    );
+
+    topLevelVideoFiles.forEach((videoName) => {
+      const id = deriveMediaId(videoName);
+      if (existingTable.byId[id]) {
+        throw new Error(
+          `Media id collision for '${id}': both folder-based and flat files exist under ${baseLocation}.`
+        );
+      }
+      const siblingFiles = validTopLevelFiles.filter((fileName) =>
+        fileName.startsWith(`${id}.`)
+      );
+      const media = mapMedia({
+        files: siblingFiles,
+        folderName: id,
+        fileExtEqual,
+      });
+      media.isFlat = true;
+      existingTable.byId[id] = media;
+      existingTable.allIds.push(id);
+    });
+
+    return existingTable;
+  };
+
   return {
     getFileDirInfo: function (fullPath) {
       try {
@@ -75,61 +139,14 @@ export default function FileUseCase({ FileApi }) {
     //TODO need test for this one
     getVideos: function ({ baseLocation }) {
       //It just goes 1 level in the folder
-      if (isDirExist(baseLocation)) {
-        logD(`getVideos under *** ${baseLocation} ***`);
-        verifyingOrphanFiles(baseLocation, { readDirectory, fileExtEqual });
-        // get all folders including the ones that does not have video
-        const allFolders = getFolderName(baseLocation, { readDirectory });
-
-        const onlyFolderWithValidFiles = (folderName) =>
-          getValidFileList(folderName, baseLocation).length > 0;
-        // reuse getValidFileList for the files in the folder
-        const isThereAVideoInFolder = (folderName) =>
-          getValidFileList(folderName, baseLocation).filter((fileName) =>
-            isThereVideoFile(fileName, fileExtEqual)
-          ).length > 0;
-        const buildUpFoldersTable = (prev, folderName) => {
-          const files = loadFiles(folderName, baseLocation);
-          const media = mapMedia({ files, folderName, fileExtEqual });
-          prev.byId[folderName] = media;
-          prev.allIds.push(media.id);
-          return prev;
-        };
-        const foldersTable = allFolders
-          .filter(onlyFolderWithValidFiles)
-          .filter(isThereAVideoInFolder)
-          .reduce(buildUpFoldersTable, { byId: {}, allIds: [] });
-        const topLevelFiles = readDirectory(baseLocation)
-          .filter((item) => !item.isDirectory())
-          .map((item) => item.name);
-        const validTopLevelFiles = filterValidFiles(topLevelFiles, fileExtEqual);
-        const topLevelVideoFiles = validTopLevelFiles.filter((fileName) =>
-          isThereVideoFile(fileName, fileExtEqual)
-        );
-        topLevelVideoFiles.forEach((videoName) => {
-          const fileExt = fileExtEqual(videoName);
-          const id = videoName.slice(0, videoName.length - fileExt.length);
-          if (foldersTable.byId[id]) {
-            throw new Error(
-              `Media id collision for '${id}': both folder-based and flat files exist under ${baseLocation}.`
-            );
-          }
-          const siblingFiles = validTopLevelFiles.filter((fileName) =>
-            fileName.startsWith(`${id}.`)
-          );
-          const media = mapMedia({
-            files: siblingFiles,
-            folderName: id,
-            fileExtEqual,
-          });
-          media.isFlat = true;
-          foldersTable.byId[id] = media;
-          foldersTable.allIds.push(id);
-        });
-        return foldersTable;
-      } else {
-        return { byId: {}, allIds: [] };
+      if (!isDirExist(baseLocation)) {
+        return createEmptyTable();
       }
+      logD(`getVideos under *** ${baseLocation} ***`);
+      verifyingOrphanFiles(baseLocation, { readDirectory, fileExtEqual });
+
+      const foldersTable = listFolderMedia(baseLocation);
+      return listFlatMedia({ baseLocation, existingTable: foldersTable });
     },
     getFileExt(fileName) {
       return fileExtEqual(fileName);
