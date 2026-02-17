@@ -107,7 +107,9 @@ export default function FileUseCase({ FileApi }) {
           const fileExt = fileExtEqual(videoName);
           const id = videoName.slice(0, videoName.length - fileExt.length);
           if (foldersTable.byId[id]) {
-            return;
+            throw new Error(
+              `Media id collision for '${id}': both folder-based and flat files exist under ${baseLocation}.`
+            );
           }
           const siblingFiles = validTopLevelFiles.filter((fileName) =>
             fileName.startsWith(`${id}.`)

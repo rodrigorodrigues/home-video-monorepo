@@ -63,6 +63,18 @@ describe("FileUseCase (integration-lite)", () => {
     expect(result.byId[id].name).toBe("FlatMovie.mp4");
   });
 
+  it("throws when flat movie id collides with folder-based movie id", () => {
+    const moviesDir = path.join(baseDir, "Movies");
+    const folderMovie = path.join(moviesDir, "Collision");
+    fs.mkdirSync(folderMovie, { recursive: true });
+    fs.writeFileSync(path.join(folderMovie, "Collision.mp4"), "");
+    fs.writeFileSync(path.join(moviesDir, "Collision.mp4"), "");
+
+    expect(() => fileUseCase.getVideos({ baseLocation: moviesDir })).toThrow(
+      "Media id collision"
+    );
+  });
+
   it("builds series list and includes season folders", () => {
     const seriesDir = path.join(baseDir, "Series");
     const showDir = path.join(seriesDir, "ShowA");
