@@ -6,13 +6,18 @@ import {
   isThereVideoFile,
 } from "./FileHelperUseCase";
 import { mapMedia } from "./MediaMapper";
+import {
+  createEmptyTable,
+  listFolderMedia,
+  listFlatMedia,
+  mergeMediaTables,
+} from "./MediaScanUtil";
 import { logD, logE } from "../../common/MessageUtil";
 import { DEFAULT_ENCODING } from "../../common/AppServerConstant";
 
 export default function FileUseCase({ FileApi }) {
   const { readDirectory, isDirExist, fileExtEqual, readFile, readFileInfo } =
     FileApi;
-  const createEmptyTable = () => ({ byId: {}, allIds: [] });
   const loadFiles = (folderName, baseLocation) =>
     getFilesFolder(`${baseLocation}/${folderName}`, readDirectory);
   const getValidFileList = (folderName, baseLocation) => {
@@ -20,66 +25,14 @@ export default function FileUseCase({ FileApi }) {
     return filterValidFiles(loadFiles(folderName, baseLocation), fileExtEqual);
   };
 
-  const deriveMediaId = (videoName) => {
-    const fileExt = fileExtEqual(videoName);
-    return videoName.slice(0, videoName.length - fileExt.length);
-  };
-
-  const listFolderMedia = (baseLocation) => {
-    const allFolders = getFolderName(baseLocation, { readDirectory });
-    const validFilesByFolder = allFolders.reduce((acc, folderName) => {
-      acc[folderName] = getValidFileList(folderName, baseLocation);
-      return acc;
-    }, {});
-    const hasValidFiles = (folderName) => validFilesByFolder[folderName].length > 0;
-    const hasVideoInFolder = (folderName) =>
-      validFilesByFolder[folderName].some((fileName) =>
-        isThereVideoFile(fileName, fileExtEqual)
+  const parseSeriesFolderName = (folderName) => {
+    const [parentFolder, childFolder] = String(folderName || "").split("__");
+    if (!parentFolder || !childFolder) {
+      throw new Error(
+        "Invalid series folderName format. Expected '<parent>__<child>'.",
       );
-    const buildFolderTable = (prev, folderName) => {
-      const files = loadFiles(folderName, baseLocation);
-      const media = mapMedia({ files, folderName, fileExtEqual });
-      prev.byId[folderName] = media;
-      prev.allIds.push(media.id);
-      return prev;
-    };
-
-    return allFolders
-      .filter(hasValidFiles)
-      .filter(hasVideoInFolder)
-      .reduce(buildFolderTable, createEmptyTable());
-  };
-
-  const listFlatMedia = ({ baseLocation, existingTable }) => {
-    const topLevelFiles = readDirectory(baseLocation)
-      .filter((item) => !item.isDirectory())
-      .map((item) => item.name);
-    const validTopLevelFiles = filterValidFiles(topLevelFiles, fileExtEqual);
-    const topLevelVideoFiles = validTopLevelFiles.filter((fileName) =>
-      isThereVideoFile(fileName, fileExtEqual)
-    );
-
-    topLevelVideoFiles.forEach((videoName) => {
-      const id = deriveMediaId(videoName);
-      if (existingTable.byId[id]) {
-        throw new Error(
-          `Media id collision for '${id}': both folder-based and flat files exist under ${baseLocation}.`
-        );
-      }
-      const siblingFiles = validTopLevelFiles.filter((fileName) =>
-        fileName.startsWith(`${id}.`)
-      );
-      const media = mapMedia({
-        files: siblingFiles,
-        folderName: id,
-        fileExtEqual,
-      });
-      media.isFlat = true;
-      existingTable.byId[id] = media;
-      existingTable.allIds.push(id);
-    });
-
-    return existingTable;
+    }
+    return { parentFolder, childFolder };
   };
 
   return {
@@ -114,29 +67,23 @@ export default function FileUseCase({ FileApi }) {
           });
           media.fileIds = loadFiles(folderName, baseLocation).filter((file) =>
             readFileInfo(
-              baseLocation + "/" + folderName + "/" + file
-            ).isDirectory()
+              baseLocation + "/" + folderName + "/" + file,
+            ).isDirectory(),
           );
           prev.byId[folderName] = media;
           prev.allIds.push(folderName);
           return prev;
         },
-        { byId: {}, allIds: [] }
+        { byId: {}, allIds: [] },
       );
     },
     getVideo: function ({ baseLocation, folderName }) {
-      const [parentFolder, childFolder] = String(folderName || "").split("__");
-      if (!parentFolder || !childFolder) {
-        throw new Error(
-          "Invalid series folderName format. Expected '<parent>__<child>'."
-        );
-      }
+      const { parentFolder, childFolder } = parseSeriesFolderName(folderName);
       const files = loadFiles(`${parentFolder}/${childFolder}`, baseLocation);
       const media = mapMedia({ files, folderName: childFolder, fileExtEqual });
       media.parentId = parentFolder;
       return media;
     },
-    //TODO need test for this one
     getVideos: function ({ baseLocation }) {
       //It just goes 1 level in the folder
       if (!isDirExist(baseLocation)) {
@@ -145,8 +92,26 @@ export default function FileUseCase({ FileApi }) {
       logD(`getVideos under *** ${baseLocation} ***`);
       verifyingOrphanFiles(baseLocation, { readDirectory, fileExtEqual });
 
-      const foldersTable = listFolderMedia(baseLocation);
-      return listFlatMedia({ baseLocation, existingTable: foldersTable });
+      const foldersTable = listFolderMedia({
+        baseLocation,
+        getFolderName,
+        readDirectory,
+        getValidFileList,
+        isThereVideoFile,
+        fileExtEqual,
+        loadFiles,
+        mapMedia,
+      });
+      const flatTable = listFlatMedia({
+        baseLocation,
+        readDirectory,
+        filterValidFiles,
+        fileExtEqual,
+        isThereVideoFile,
+        mapMedia,
+        existingById: foldersTable.byId,
+      });
+      return mergeMediaTables(foldersTable, flatTable);
     },
     getFileExt(fileName) {
       return fileExtEqual(fileName);
