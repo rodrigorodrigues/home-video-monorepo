@@ -1,50 +1,37 @@
-# Multi-stage Dockerfile for Home Video Monorepo
-# Builds both web and api apps
+# Multi-stage Dockerfile for Home Video Monorepo (Merged App)
+# Build context: monorepo root
+# Usage: docker build -t home-video-app .
+# The API serves both REST endpoints and React static files
 
-# Stage 1: Build web app
-FROM node:24-alpine AS web-build
+# Stage 1: Build React web app
+FROM node:24-alpine AS build-web
 
-WORKDIR /monorepo
-COPY package*.json ./
-COPY apps/web/package*.json ./apps/web/
+ARG PUBLIC_URL=/home-video
+ENV PUBLIC_URL=${PUBLIC_URL}
 
-# Install all dependencies at monorepo level
+WORKDIR /build
+COPY apps/web/package*.json ./
 RUN npm install
 
-# Copy web app source and build
-COPY apps/web ./apps/web
-WORKDIR /monorepo/apps/web
-RUN npm run build
+COPY apps/web/ ./
+RUN PUBLIC_URL=${PUBLIC_URL} npm run build
 
-# Stage 2: Setup API
-FROM node:24-alpine AS api-setup
-
-WORKDIR /app
-COPY apps/api/package*.json ./
-RUN npm install --omit=dev
-COPY apps/api .
-
-# Stage 3: Final runtime with both apps
+# Stage 2: Setup API with web build
 FROM node:24-alpine
 
-# Install nginx for serving web app
-RUN apk add --no-cache nginx
-
-# Setup API
 WORKDIR /app
-COPY --from=api-setup /app ./
 
-# Setup web app with nginx
-COPY --from=web-build /monorepo/apps/web/build /usr/share/nginx/html
-COPY apps/web/nginx/nginx.conf /etc/nginx/conf.d/default.conf
+# Install API dependencies
+COPY apps/api/package*.json ./
+RUN npm install --omit=dev
 
-# Expose ports
-EXPOSE 8080 3000
+# Copy API source
+COPY apps/api/ ./
 
-# Create startup script
-RUN echo '#!/bin/sh' > /start.sh && \
-    echo 'nginx' >> /start.sh && \
-    echo 'cd /app && npm run docker:start' >> /start.sh && \
-    chmod +x /start.sh
+# Copy web build from previous stage
+COPY --from=build-web /build/build ./web/build
 
-CMD ["/start.sh"]
+# Expose API port (configurable via SERVER_PORT env var)
+EXPOSE 8080
+
+CMD [ "npm", "run", "docker:start"]

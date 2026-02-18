@@ -41,7 +41,7 @@ After manual startup is stable, move to one-click/bootstrap + services:
   - API: `http://localhost:8080`
 
 - **Production (merged app):**
-  - Single app serving both frontend and API: `http://localhost:8081` (configurable via `SERVER_PORT`)
+  - Single app serving both frontend and API: `http://localhost:8081/home-video` (configurable via `SERVER_PORT` and `PUBLIC_URL`)
 
 ## Deployment
 
@@ -67,9 +67,11 @@ The application uses environment variables for configuration. Key settings in `.
 **Server:**
 ```bash
 SERVER_PORT=8081                # Server port
+PUBLIC_URL=/home-video          # URL prefix for app and API endpoints
 VIDEO_PATH=/mnt-host           # Path to video files
 MOVIES_DIR=Movies              # Movies subdirectory
 SERIES_DIR=Series              # Series subdirectory
+MULTI_USER_ENABLED=false       # Enable per-user video directories
 ```
 
 **Authentication:**
@@ -116,9 +118,33 @@ The application supports multiple authentication methods:
 
 In production, the API serves both the REST endpoints and the React frontend as a single application:
 - Single Docker container
+- Configurable URL prefix via `PUBLIC_URL` (default: `/home-video`)
 - Simplified deployment
 - Shared session management
 - Reduced infrastructure complexity
+
+### Multi-User Support
+
+The application supports **per-user video libraries** for multi-tenant deployments:
+
+- **Enable**: Set `MULTI_USER_ENABLED=true` in environment configuration
+- **Directory Structure**: Each user gets isolated directories at `/mnt-host/{username}/Movies` and `/mnt-host/{username}/Series`
+- **Automatic Provisioning**: User accounts and directories are created automatically on first login
+- **User Isolation**: All API endpoints (videos, images, captions) automatically filter content by authenticated user
+- **Backward Compatible**: When disabled (default), all users share the same video directory
+
+**Example Directory Layout**:
+```
+/mnt-host/
+  ├── admin/
+  │   ├── Movies/
+  │   └── Series/
+  └── user@example.com/
+      ├── Movies/
+      └── Series/
+```
+
+**User Data Storage**: Application-level users are stored in `data/users.json` (no OS users created)
 
 ## Documentation
 

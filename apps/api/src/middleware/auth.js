@@ -1,5 +1,6 @@
 import { verifyAccessToken } from "../auth/tokenService";
 import { getCookie } from "../common/Util";
+import { getUser } from "../user/userStore.js";
 
 const COOKIE_ACCESS = "access_token";
 
@@ -10,6 +11,13 @@ export async function requireAuth(req, res, next) {
   if (req.session && req.session.authenticated && req.session.user) {
     req.session.lastAccessedTime = Date.now();
     req.user = req.session.user;
+
+    // Ensure user data from store is attached (for videoPath)
+    const storedUser = getUser(req.user.username);
+    if (storedUser) {
+      req.user.videoPath = storedUser.videoPath;
+    }
+
     console.log(`[AUTH] Authenticated via session: ${req.user.username}`);
     return next();
   }
@@ -31,6 +39,13 @@ export async function requireAuth(req, res, next) {
   try {
     const payload = await verifyAccessToken(accessToken);
     req.user = { id: payload.sub, username: payload.username };
+
+    // Ensure user data from store is attached (for videoPath)
+    const storedUser = getUser(req.user.username);
+    if (storedUser) {
+      req.user.videoPath = storedUser.videoPath;
+    }
+
     console.log(`[AUTH] Authenticated via JWT: ${req.user.username}`);
     return next();
   } catch(error) {

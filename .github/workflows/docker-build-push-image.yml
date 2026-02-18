@@ -50,6 +50,7 @@ jobs:
             GITHUB_SHA=$GITHUB_SHA
             GITHUB_REF=$GITHUB_REF
             SERVER_PORT=3003
+            PUBLIC_URL=/home-video
 
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}

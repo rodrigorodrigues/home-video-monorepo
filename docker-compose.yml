@@ -16,9 +16,12 @@ services:
     build:
       context: ./apps
       dockerfile: ./api/Dockerfile
+      args:
+        PUBLIC_URL: /home-video
     env_file:
       - ./.env.docker.api.prod
     environment:
+      - PUBLIC_URL=/home-video
       - ADMIN_PASSWORD_HASH_FILE=/run/secrets/admin_password_hash
       - SERVER_PORT=8081
       - JWKS_URL=http://host.docker.internal:8080/.well-known/jwks.json
@@ -30,6 +33,7 @@ services:
       - SESSION_COOKIE_NAME=SESSIONID
       - LOGIN_SECOND_RETRY=true
       - LOGIN_SECOND_RETRY_URL=http://host.docker.internal:8080/api/authenticate
+      - MULTI_USER_ENABLED=true
     ports:
       - "8081:8081"
     volumes:

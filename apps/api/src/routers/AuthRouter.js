@@ -8,6 +8,8 @@ import config from "../config";
 import crypto from "crypto";
 import { getCookie } from "../common/Util";
 import { ssoRedisEnabled, sessionCookieName } from "../auth/redisSessionStore";
+import { upsertUser } from "../user/userStore.js";
+import { ensureUserDirectory } from "../user/userDirectory.js";
 
 const COOKIE_ACCESS = "access_token";
 const COOKIE_REFRESH = "refresh_token";
@@ -108,22 +110,26 @@ export function createAuthRouter({ refreshTokenStore }) {
             if (externalToken) {
               console.log(`[LOGIN] Second retry successful, received external token`);
 
+              // Register user in application store and create directories
+              const appUser = upsertUser(username);
+              ensureUserDirectory(username);
+
               // Issue our own tokens for session consistency
               const { accessToken, refreshToken, jti, refreshExpiresAtMs } = issueTokens({
-                userId: username, // Use username as ID
+                userId: appUser.id,
                 username: username,
               });
 
               refreshTokenStore.save({
                 jti,
-                userId: username,
+                userId: appUser.id,
                 expiresAtMs: refreshExpiresAtMs,
               });
 
               // Store authentication context in session
               req.session.authenticated = true;
               req.session.user = {
-                id: username,
+                id: appUser.id,
                 username: username,
                 email: username,
                 authorities: ["ROLE_USER"],
@@ -131,6 +137,7 @@ export function createAuthRouter({ refreshTokenStore }) {
                 accountNonExpired: true,
                 credentialsNonExpired: true,
                 enabled: true,
+                videoPath: appUser.videoPath,
               };
               req.session.token = {
                 tokenType: "Bearer",
@@ -177,6 +184,10 @@ export function createAuthRouter({ refreshTokenStore }) {
       return res.status(401).json({ message: "Invalid credentials" }).end();
     }
 
+    // Register admin user in application store and create directories
+    const appUser = upsertUser(AUTH_USER.username);
+    ensureUserDirectory(AUTH_USER.username);
+
     const { accessToken, refreshToken, jti, refreshExpiresAtMs } = issueTokens({
       userId: AUTH_USER.id,
       username: AUTH_USER.username,
@@ -199,6 +210,7 @@ export function createAuthRouter({ refreshTokenStore }) {
       accountNonExpired: true,
       credentialsNonExpired: true,
       enabled: true,
+      videoPath: appUser.videoPath,
     };
     req.session.token = {
       tokenType: "Bearer",

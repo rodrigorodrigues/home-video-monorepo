@@ -19,6 +19,7 @@ import {
   getSeriesMap,
 } from "../common/Util";
 import { sendError } from "./RouterUtil";
+import { getUserMoviesPath, getUserSeriesPath, getUserVideoPath } from "../user/userDirectory.js";
 
 const moviesAbsPath = `${config.videosPath}/${config.moviesDir}`;
 const seriesAbsPath = `${config.videosPath}/${config.seriesDir}`;
@@ -26,6 +27,23 @@ const seriesAbsPath = `${config.videosPath}/${config.seriesDir}`;
 const { createStream } = StreamingData;
 const { getVideos, getFileDirInfo, getSeries, getVideo } = DataAccess;
 const router = express.Router();
+
+// Helper to get user-specific paths
+function getUserPaths(req) {
+  const multiUserEnabled = process.env.MULTI_USER_ENABLED === "true";
+  if (multiUserEnabled && req.user && req.user.username) {
+    return {
+      moviesPath: getUserMoviesPath(req.user.username),
+      seriesPath: getUserSeriesPath(req.user.username),
+      videosPath: getUserVideoPath(req.user.username),
+    };
+  }
+  return {
+    moviesPath: moviesAbsPath,
+    seriesPath: seriesAbsPath,
+    videosPath: config.videosPath,
+  };
+}
 
 router.get("/", redirectMovies);
 router.get("/videos", loadMovies);
@@ -39,15 +57,17 @@ router.get("/series/:parent/:folder/:fileName", streamingShow);
 function redirectMovies(_, res) {
   res.redirect("/videos");
 }
-function loadMovies(_, response) {
+function loadMovies(req, response) {
   try {
-    const videos = getVideos({ baseLocation: `${moviesAbsPath}` });
+    const { moviesPath, videosPath } = getUserPaths(req);
+    const videos = getVideos({ baseLocation: moviesPath });
 
-    logD("videosPath=", config.videosPath);
+    logD("videosPath=", videosPath);
+    logD("user=", req.user?.username);
     if (videos.allIds.length === 0) {
       sendError({
         response,
-        message: `No videos were found. Expected movies under ${config.videosPath}/${config.moviesDir}/<MovieFolder>/<videoFile>.`,
+        message: `No videos were found. Expected movies under ${videosPath}/${config.moviesDir}/<MovieFolder>/<videoFile>.`,
         statusCode: 500,
       });
     } else {
@@ -72,10 +92,11 @@ function loadMovies(_, response) {
     });
   }
 }
-function loadSeries(_, response) {
+function loadSeries(req, response) {
   try {
+    const { seriesPath } = getUserPaths(req);
     const folders = getSeries({
-      baseLocation: `${config.videosPath}/${config.seriesDir}`,
+      baseLocation: seriesPath,
     });
     const tempMap = folders.allIds.reduce(
       (prev, id) => {
@@ -86,6 +107,7 @@ function loadSeries(_, response) {
       { byId: {}, allIds: [] }
     );
     setSeriesMap(tempMap);
+    logD("loadSeries user=", req.user?.username, "seriesPath=", seriesPath);
     flushJSON(response, folders);
   } catch (error) {
     sendError({
@@ -98,6 +120,7 @@ function loadSeries(_, response) {
 }
 function loadMovie(req, response) {
   const { id, isSeries } = req.params;
+  const { moviesPath, videosPath } = getUserPaths(req);
   let movieMap = getMovieMap();
   const seriesMap = getSeriesMap();
 
@@ -113,11 +136,11 @@ function loadMovie(req, response) {
 
   if (movieMap.allIds.length === 0) {
     try {
-      const videos = getVideos({ baseLocation: `${moviesAbsPath}` });
+      const videos = getVideos({ baseLocation: moviesPath });
       if (videos.allIds.length === 0) {
         sendError({
           response,
-          message: `No videos were found. Expected movies under ${config.videosPath}/${config.moviesDir}/<MovieFolder>/<videoFile>.`,
+          message: `No videos were found. Expected movies under ${videosPath}/${config.moviesDir}/<MovieFolder>/<videoFile>.`,
           statusCode: 500,
         });
         return;
@@ -156,7 +179,8 @@ function loadMovie(req, response) {
 }
 function loadShow(req, response) {
   const { id } = req.params;
-  const show = getVideo({ baseLocation: seriesAbsPath, folderName: id });
+  const { seriesPath } = getUserPaths(req);
+  const show = getVideo({ baseLocation: seriesPath, folderName: id });
 
   if (!show) {
     logE(`Attempting to get a video in memory id ${id} has failed`);
@@ -172,18 +196,20 @@ function loadShow(req, response) {
 }
 function streamingVideo(request, response) {
   const { folder, fileName } = request.params;
+  const { moviesPath } = getUserPaths(request);
   const movieMap = getMovieMap();
   const media = movieMap.byId[folder];
   const fileAbsPath =
     media && media.isFlat
-      ? `${moviesAbsPath}/${fileName}`
-      : `${moviesAbsPath}/${folder}/${fileName}`;
+      ? `${moviesPath}/${fileName}`
+      : `${moviesPath}/${folder}/${fileName}`;
   doStreaming({ request, response, fileAbsPath });
 }
 
 function streamingShow(request, response) {
   const { folder, fileName, parent } = request.params;
-  const fileAbsPath = `${seriesAbsPath}/${parent}/${folder}/${fileName}`;
+  const { seriesPath } = getUserPaths(request);
+  const fileAbsPath = `${seriesPath}/${parent}/${folder}/${fileName}`;
   doStreaming({ request, response, fileAbsPath });
 }
 

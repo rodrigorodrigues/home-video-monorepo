@@ -70,7 +70,9 @@ app.use("/public", express.static(path.join(__dirname, "public")));
 
 // Serve React static files from web app build folder
 const webBuildPath = path.join(__dirname, "web/build");
-app.use(express.static(webBuildPath));
+const publicUrl = process.env.PUBLIC_URL || '/';
+
+app.use(publicUrl, express.static(webBuildPath));
 
 app.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok" }).end();
@@ -79,13 +81,15 @@ app.get("/favicon.ico", (_req, res) => {
   res.status(204).end();
 });
 
-// Serve React app home page for root
-app.get("/", (_req, res) => {
+// Serve React app home page for root path
+app.get(publicUrl === '/' ? '/' : `${publicUrl}`, (_req, res) => {
   res.sendFile(path.join(webBuildPath, "index.html"));
 });
 
 const refreshTokenStore = createInMemoryRefreshTokenStore();
-app.use("/auth", createAuthRouter({ refreshTokenStore }));
+const apiPrefix = publicUrl === '/' ? '' : publicUrl;
+
+app.use(`${apiPrefix}/auth`, createAuthRouter({ refreshTokenStore }));
 
 // Apply auth middleware only to API routes
 app.use((req, _res, next) => {
@@ -95,7 +99,19 @@ app.use((req, _res, next) => {
   if (/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/i.test(req.path)) return next();
   // Skip auth for root and health endpoints
   if (req.path === "/" || req.path === "/health" || req.path === "/favicon.ico") return next();
-  // Apply auth to all API routes
+  // Skip auth for PUBLIC_URL paths
+  if (apiPrefix && (req.path === apiPrefix || req.path.startsWith(`${apiPrefix}/`))) {
+    // Only check API routes under PUBLIC_URL
+    const pathAfterPrefix = req.path.substring(apiPrefix.length);
+    if (pathAfterPrefix.startsWith("/videos") ||
+        pathAfterPrefix.startsWith("/series") ||
+        pathAfterPrefix.startsWith("/images") ||
+        pathAfterPrefix.startsWith("/captions") ||
+        pathAfterPrefix.startsWith("/progress")) {
+      return requireAuth(req, _res, next);
+    }
+  }
+  // Apply auth to all API routes (when no PUBLIC_URL)
   if (req.path.startsWith("/videos") ||
       req.path.startsWith("/series") ||
       req.path.startsWith("/images") ||
@@ -107,15 +123,21 @@ app.use((req, _res, next) => {
   return next();
 });
 
-app.use("/", VideosRouter);
-app.use("/", ImagesRouter);
-app.use("/", CaptionsRouter);
-app.use("/", createProgressRouter());
+app.use(apiPrefix, VideosRouter);
+app.use(apiPrefix, ImagesRouter);
+app.use(apiPrefix, CaptionsRouter);
+app.use(apiPrefix, createProgressRouter());
 
 // Serve React app for all other routes (SPA fallback)
-app.use((_req, res) => {
-  res.sendFile(path.join(webBuildPath, "index.html"));
-});
+if (publicUrl === '/') {
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(webBuildPath, "index.html"));
+  });
+} else {
+  app.get(new RegExp(`^${publicUrl.replace(/\//g, '\\/')}(\\/.*)?$`), (_req, res) => {
+    res.sendFile(path.join(webBuildPath, "index.html"));
+  });
+}
 
 async function initializeSession() {
   if (sessionInitialized) return;
@@ -134,7 +156,7 @@ if (process.env.NODE_ENV !== "test") {
       console.log("Session initialized, starting HTTP server...");
 
       app.listen(config.port, async () => {
-        console.log(`Application started, ${config.serverUrl}`);
+        console.log(`Application started, ${config.serverUrl}${config.publicUrl}`);
         console.log(`App config`);
         console.log(`Movies folder: ${config.moviesDir}`);
         console.log(`baseLocation: ${config.baseLocation}`);

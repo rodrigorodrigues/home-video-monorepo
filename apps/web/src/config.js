@@ -28,6 +28,8 @@ export default function config() {
     console.log(`React server host => ${host}`);
     console.log(`Env => ${NODE_ENV}`);
   }
+  const publicUrl = process.env.PUBLIC_URL || '/home-video';
+
   if (NODE_ENV === "production") {
     // In production, if API and web are served from same server, use window.location
     if (windowRef && windowRef.location) {
@@ -35,20 +37,20 @@ export default function config() {
       result.PROTOCOL = windowRef.location.protocol.replace(":", "");
       result.PORT = currentPort;
       result.host = windowRef.location.hostname;
-      result.SERVER_URL = `${result.PROTOCOL}://${result.host}:${result.PORT}`;
+      result.SERVER_URL = `${result.PROTOCOL}://${result.host}:${result.PORT}${publicUrl}`;
     } else {
       // Fallback for SSR or non-browser environments
       const defaultProtocol = REACT_APP_SERVER_PROTOCOL || "https";
       result.PROTOCOL = defaultProtocol;
       result.PORT = process.env.PORT || 8080;
       result.host = host;
-      result.SERVER_URL = `${result.PROTOCOL}://${result.host}:${result.PORT}`;
+      result.SERVER_URL = `${result.PROTOCOL}://${result.host}:${result.PORT}${publicUrl}`;
     }
   } else {
     result.PROTOCOL = "http";
     result.PORT = 8080;
     result.host = host; // testing purposes, pointing to prod
-    result.SERVER_URL = `${result.PROTOCOL}://${result.host}:${result.PORT}`;
+    result.SERVER_URL = `${result.PROTOCOL}://${result.host}:${result.PORT}${publicUrl}`;
   }
   return result;
 }

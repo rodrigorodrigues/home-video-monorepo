@@ -7,6 +7,7 @@ import streamingUseCases from "../domain/streamingUseCases";
 import { streamEvents } from "../domain/streamingUseCases/StreamingUtilUseCase";
 import subsrt from "subsrt";
 import { sendError } from "./RouterUtil";
+import { getUserMoviesPath, getUserSeriesPath } from "../user/userDirectory.js";
 
 const { videosPath, moviesDir, seriesDir } = config();
 const moviesAbsPath = `${videosPath}/${moviesDir}`;
@@ -15,18 +16,35 @@ const seriesAbsPath = `${videosPath}/${seriesDir}`;
 const { getFileExt, readFile } = fileUseCases;
 const { createStream } = streamingUseCases;
 
+// Helper to get user-specific paths
+function getUserPaths(req) {
+  const multiUserEnabled = process.env.MULTI_USER_ENABLED === "true";
+  if (multiUserEnabled && req.user && req.user.username) {
+    return {
+      moviesPath: getUserMoviesPath(req.user.username),
+      seriesPath: getUserSeriesPath(req.user.username),
+    };
+  }
+  return {
+    moviesPath: moviesAbsPath,
+    seriesPath: seriesAbsPath,
+  };
+}
+
 router.get("/captions/:folder/:fileName", getCaption);
 router.get("/captions/:parent/:folder/:fileName", getCaptionShow);
 
 function getCaption(request, response) {
   const { folder, fileName } = request.params;
-  const fileAbsPath = `${moviesAbsPath}/${folder}/${fileName}`;
+  const { moviesPath } = getUserPaths(request);
+  const fileAbsPath = `${moviesPath}/${folder}/${fileName}`;
   doCaption({ request, response, fileAbsPath });
 }
 
 function getCaptionShow(request, response) {
   const { folder, fileName, parent } = request.params;
-  const fileAbsPath = `${seriesAbsPath}/${parent}/${folder}/${fileName}`;
+  const { seriesPath } = getUserPaths(request);
+  const fileAbsPath = `${seriesPath}/${parent}/${folder}/${fileName}`;
   doCaption({ request, response, fileAbsPath });
 }
 
