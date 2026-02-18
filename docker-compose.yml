@@ -33,6 +33,7 @@ services:
       - SESSION_COOKIE_NAME=SESSIONID
       - LOGIN_SECOND_RETRY=true
       - LOGIN_SECOND_RETRY_URL=http://host.docker.internal:8080/api/authenticate
+      - LOGIN_SECOND_RETRY_CSRF_URL=http://host.docker.internal:8080/api/csrf
       - MULTI_USER_ENABLED=true
     ports:
       - "8081:8081"

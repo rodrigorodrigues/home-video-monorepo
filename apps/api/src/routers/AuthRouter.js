@@ -80,12 +80,44 @@ export function createAuthRouter({ refreshTokenStore }) {
         console.log(`[LOGIN] Local validation failed, attempting second retry at: ${secondRetryUrl}`);
 
         try {
-          // Call external authentication service
+          // Get CSRF URL from config or construct from base URL
+          const csrfUrl = process.env.LOGIN_SECOND_RETRY_CSRF_URL ||
+            (() => {
+              const baseUrl = secondRetryUrl.substring(0, secondRetryUrl.lastIndexOf('/api/'));
+              return `${baseUrl}/api/csrf`;
+            })();
+
+          console.log(`[LOGIN] Fetching CSRF token from: ${csrfUrl}`);
+
+          // Step 1: Get CSRF token
+          const csrfResponse = await fetch(csrfUrl, {
+            method: "GET",
+            credentials: "include",
+          });
+
+          if (!csrfResponse.ok) {
+            console.error(`[LOGIN] Failed to fetch CSRF token: ${csrfResponse.status}`);
+            throw new Error(`CSRF fetch failed with status ${csrfResponse.status}`);
+          }
+
+          const csrfData = await csrfResponse.json();
+          const csrfToken = csrfData.token;
+
+          if (!csrfToken) {
+            console.error(`[LOGIN] No CSRF token in response`);
+            throw new Error("No CSRF token received");
+          }
+
+          console.log(`[LOGIN] CSRF token obtained, authenticating...`);
+
+          // Step 2: Call external authentication service with CSRF token
           const response = await fetch(secondRetryUrl, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
+              "X-CSRF-TOKEN": csrfToken,
             },
+            credentials: "include",
             body: JSON.stringify({ username, password }),
           });
 

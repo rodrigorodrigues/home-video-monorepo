@@ -72,6 +72,13 @@ export function getUserVideoPath(username) {
  * @returns {string}
  */
 export function getUserMoviesPath(username) {
+  const multiUserEnabled = process.env.MULTI_USER_ENABLED === "true";
+
+  // Ensure directory exists if multi-user mode is enabled
+  if (multiUserEnabled) {
+    ensureUserDirectory(username);
+  }
+
   const basePath = getUserVideoPath(username);
   const moviesDir = process.env.MOVIES_DIR || "Movies";
   return path.join(basePath, moviesDir);
@@ -83,6 +90,13 @@ export function getUserMoviesPath(username) {
  * @returns {string}
  */
 export function getUserSeriesPath(username) {
+  const multiUserEnabled = process.env.MULTI_USER_ENABLED === "true";
+
+  // Ensure directory exists if multi-user mode is enabled
+  if (multiUserEnabled) {
+    ensureUserDirectory(username);
+  }
+
   const basePath = getUserVideoPath(username);
   const seriesDir = process.env.SERIES_DIR || "Series";
   return path.join(basePath, seriesDir);
