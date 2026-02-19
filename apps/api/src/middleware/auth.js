@@ -7,7 +7,7 @@ const COOKIE_ACCESS = "access_token";
 export function createRequireAuth({
   tokenService = defaultTokenService,
 } = {}) {
-  return function requireAuth(req, res, next) {
+  return async function requireAuth(req, res, next) {
     console.log(`[AUTH] ${req.method} ${req.path} - Checking authentication`);
 
     // Check session first (SSO via Redis or memory)
@@ -39,7 +39,8 @@ export function createRequireAuth({
     }
 
     try {
-      const payload = tokenService.verifyAccessToken(accessToken);
+      // verifyAccessToken may return a Promise when using JWKS
+      const payload = await tokenService.verifyAccessToken(accessToken);
       req.user = { id: payload.sub, username: payload.username };
 
       // Ensure user data from store is attached (for videoPath)
