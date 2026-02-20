@@ -85,17 +85,21 @@ export function createAuthRouter({
           if (csrfResponse.ok) {
             const csrfData = await csrfResponse.json();
             const csrfToken = csrfData.token;
+            const csrfHeaderName = csrfData.headerName || "X-CSRF-TOKEN";
 
             if (csrfToken) {
-              console.log(`[LOGIN] CSRF token obtained, authenticating...`);
+              console.log(`[LOGIN] CSRF token obtained: ${csrfToken.substring(0, 10)}...`);
+              console.log(`[LOGIN] Using CSRF header: ${csrfHeaderName}`);
 
               // Step 2: Call external authentication service with CSRF token
+              const headers = {
+                "Content-Type": "application/json",
+              };
+              headers[csrfHeaderName] = csrfToken;
+
               const response = await fetch(secondRetryUrl, {
                 method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "X-CSRF-TOKEN": csrfToken,
-                },
+                headers,
                 credentials: "include",
                 body: JSON.stringify({ username, password }),
               });
@@ -203,39 +207,72 @@ export function createAuthRouter({
   }
 
   function logout(req, res) {
+    console.log(`[LOGOUT] Logout request received`);
+    console.log(`[LOGOUT] Has session: ${!!req.session}, sessionID: ${req.sessionID}`);
+    console.log(`[LOGOUT] Session data:`, req.session ? { authenticated: req.session.authenticated, username: req.session.user?.username } : 'null');
+
     const { refreshToken: refreshTokenBody } = req.body || {};
     const refreshToken = refreshTokenBody || getCookie(req, COOKIE_REFRESH);
     if (!refreshToken) {
+      console.log('[LOGOUT] Missing refresh token');
       return res.status(400).json({ message: "Missing refresh token" }).end();
     }
     if (
       !refreshTokenBody &&
       !ensureCsrf({ req, res, cookieName: COOKIE_CSRF })
     ) {
+      console.log('[LOGOUT] CSRF validation failed');
       return;
     }
+
+    console.log('[LOGOUT] Revoking refresh token');
     authSessionService.revokeRefreshSession({ refreshToken });
 
-    // Destroy session if it exists (deletes from Redis if using Spring Session)
+    // Destroy session if it exists (deletes from Redis if SSO_REDIS_ENABLED=true)
     if (req.session) {
       const sessionCookieName = process.env.SESSION_COOKIE_NAME || 'connect.sid';
+      const sessionId = req.sessionID;
+      const ssoRedisEnabled = process.env.SSO_REDIS_ENABLED === 'true';
+
+      console.log(`[LOGOUT] About to destroy session: ${sessionId} (SSO_REDIS_ENABLED=${ssoRedisEnabled})`);
+      console.log(`[LOGOUT] Session destroy function type: ${typeof req.session.destroy}`);
+
       req.session.destroy((err) => {
         if (err) {
           console.error('[LOGOUT] Error destroying session:', err);
+          console.error('[LOGOUT] Error stack:', err.stack);
+        } else {
+          console.log(`[LOGOUT] Session destroy callback executed successfully`);
+          console.log(`[LOGOUT] Session destroyed from ${ssoRedisEnabled ? 'Redis' : 'memory store'}`);
         }
-        // Clear the session cookie
-        res.clearCookie(sessionCookieName, {
-          path: '/',
-          httpOnly: true,
-          secure: process.env.COOKIE_SECURE === 'true',
-          sameSite: process.env.COOKIE_SAMESITE || 'lax'
-        });
-        console.log('[LOGOUT] Session destroyed and cookie cleared');
-      });
-    }
 
-    cookies.clearAuthCookies(res);
-    return res.status(200).json({ message: "Logged out" }).end();
+        // Clear all possible session cookies (Spring Session uses various names)
+        const cookiesToClear = [sessionCookieName, 'SESSIONID', 'SESSION', 'JSESSIONID', 'connect.sid'];
+        cookiesToClear.forEach(cookieName => {
+          res.clearCookie(cookieName, {
+            path: '/',
+            httpOnly: true,
+            secure: process.env.COOKIE_SECURE === 'true',
+            sameSite: process.env.COOKIE_SAMESITE || 'lax'
+          });
+        });
+
+        console.log('[LOGOUT] All session cookies cleared:', cookiesToClear.join(', '));
+
+        // Clear JWT cookies
+        cookies.clearAuthCookies(res);
+        console.log('[LOGOUT] JWT cookies cleared');
+
+        // Send response after session is destroyed
+        console.log('[LOGOUT] Sending logout response');
+        return res.status(200).json({ message: "Logged out" }).end();
+      });
+    } else {
+      // No session, just clear JWT cookies
+      console.log('[LOGOUT] No session found on request object, clearing JWT cookies only');
+      cookies.clearAuthCookies(res);
+      return res.status(200).json({ message: "Logged out" }).end();
+    }
   }
 
   function me(req, res) {

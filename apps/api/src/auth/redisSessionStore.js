@@ -164,10 +164,18 @@ export async function createSessionMiddleware() {
                 req.sessionID = springSessionId;
                 req.session = sessionData;
 
-                // Add session methods
+                // Add session methods that properly call the Redis store
                 req.session.regenerate = (cb) => cb && cb();
                 req.session.destroy = (cb) => {
-                  redisStore.destroy(springSessionId, cb || (() => {}));
+                  console.log(`[SESSION] destroy() called for session: ${springSessionId}`);
+                  redisStore.destroy(springSessionId, (destroyErr) => {
+                    if (destroyErr) {
+                      console.error(`[SESSION] Error in destroy callback:`, destroyErr);
+                    } else {
+                      console.log(`[SESSION] Session destroyed from Redis: ${springSessionId}`);
+                    }
+                    if (cb) cb(destroyErr);
+                  });
                 };
                 req.session.reload = (cb) => cb && cb();
                 req.session.save = (cb) => cb && cb();

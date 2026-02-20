@@ -173,16 +173,41 @@ class SpringSessionStore extends Store {
   }
 
   /**
-   * Destroy session - delegate to Spring app
+   * Destroy session - delete from Redis
+   * Spring Session stores multiple keys:
+   * - spring:session:sessions:{sessionId} - main session hash
+   * - spring:session:expirations:{expirationTime} - expiration set
+   * - spring:session:index:... - index keys for principal lookup
    */
   async destroy(sessionId, callback) {
     const key = this.prefix + sessionId;
     console.log(`[SPRING_SESSION] Destroying session: ${key}`);
 
     try {
-      await this.client.del(key);
-      // Also delete the expiration key used by Spring Session
-      await this.client.del(`${this.prefix}expirations:${sessionId}`);
+      // Get principalName before deleting (for index cleanup)
+      const data = await this.client.hGetAll(key);
+      const principalName = data?.["principalName"] || data?.["spring:session:principalName"];
+
+      // Delete main session hash
+      const deleted = await this.client.del(key);
+      console.log(`[SPRING_SESSION] Deleted main session key: ${key}, count: ${deleted}`);
+
+      // Delete expiration keys - Spring Session stores expiration in a set
+      // We need to find and remove from the expiration set
+      const expirationPattern = `${this.prefix}expirations:*`;
+      const expirationKeys = await this.client.keys(expirationPattern);
+      for (const expKey of expirationKeys) {
+        await this.client.sRem(expKey, key);
+      }
+      console.log(`[SPRING_SESSION] Cleaned up expiration keys`);
+
+      // Delete principal index if exists
+      if (principalName) {
+        const indexKey = `${this.prefix}index:${principalName}`;
+        await this.client.del(indexKey);
+        console.log(`[SPRING_SESSION] Deleted principal index: ${indexKey}`);
+      }
+
       callback(null);
     } catch (error) {
       console.error(`[SPRING_SESSION] Error destroying session:`, error);

@@ -13,7 +13,7 @@ import { createProgressRouter } from "../routers/ProgressRouter";
 import { createMediaServices } from "./mediaServices";
 import { createCorsOptions } from "./corsOptions";
 
-export function createApp({ appConfig, env = process.env } = {}) {
+export function createApp({ appConfig, env = process.env, sessionMiddleware = null } = {}) {
   const app = express();
   const corsOptions = createCorsOptions({ appConfig, env });
   const publicUrl = (appConfig.publicUrl || '').replace(/\/$/, ''); // Remove trailing slash
@@ -21,6 +21,11 @@ export function createApp({ appConfig, env = process.env } = {}) {
   app.use(cors(corsOptions));
   app.use(bodyParser.json());
   app.use(bodyParser.urlencoded({ extended: true }));
+
+  // Session middleware (for Redis/Spring Session SSO) - passed from startup
+  if (sessionMiddleware) {
+    app.use(sessionMiddleware);
+  }
 
   // Serve public static files
   const publicPath = path.resolve(__dirname, "../../public");
