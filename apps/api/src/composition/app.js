@@ -54,6 +54,13 @@ export function createApp({ appConfig, env = process.env, sessionMiddleware = nu
     res.status(204).end();
   });
 
+  // Redirect /favicon.png to PUBLIC_URL/favicon.png
+  if (publicUrl) {
+    app.get("/favicon.png", (_req, res) => {
+      res.redirect(`${publicUrl}/favicon.png`);
+    });
+  }
+
   const refreshTokenStore = createInMemoryRefreshTokenStore();
   const tokenService = createTokenService();
   const { fileService, streamService } = createMediaServices();

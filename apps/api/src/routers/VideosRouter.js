@@ -191,6 +191,21 @@ export function createVideosRouter({
       media && media.isFlat
         ? `${moviesPath}/${fileName}`
         : `${moviesPath}/${folder}/${fileName}`;
+
+    // Security: Verify the file path is within the user's movies directory
+    const path = require('path');
+    const resolvedPath = path.resolve(fileAbsPath);
+    const resolvedMoviesPath = path.resolve(moviesPath);
+
+    if (!resolvedPath.startsWith(resolvedMoviesPath)) {
+      logE(`Access denied: User attempted to access file outside their directory: ${resolvedPath}`);
+      return sendError({
+        response,
+        message: "Access denied",
+        statusCode: 403,
+      });
+    }
+
     doStreaming({ request, response, fileAbsPath });
   }
 
@@ -198,6 +213,21 @@ export function createVideosRouter({
     const { folder, fileName, parent } = request.params;
     const { seriesPath } = getUserPaths(request);
     const fileAbsPath = `${seriesPath}/${parent}/${folder}/${fileName}`;
+
+    // Security: Verify the file path is within the user's series directory
+    const path = require('path');
+    const resolvedPath = path.resolve(fileAbsPath);
+    const resolvedSeriesPath = path.resolve(seriesPath);
+
+    if (!resolvedPath.startsWith(resolvedSeriesPath)) {
+      logE(`Access denied: User attempted to access file outside their directory: ${resolvedPath}`);
+      return sendError({
+        response,
+        message: "Access denied",
+        statusCode: 403,
+      });
+    }
+
     doStreaming({ request, response, fileAbsPath });
   }
 

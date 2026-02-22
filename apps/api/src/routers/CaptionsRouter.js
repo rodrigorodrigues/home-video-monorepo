@@ -1,4 +1,5 @@
 import express from "express";
+import path from "path";
 import { logE } from "../common/MessageUtil";
 import config from "../config";
 import fileUseCases from "../domain/fileUseCases";
@@ -44,6 +45,20 @@ export function createCaptionsRouter({
     const { folder, fileName } = request.params;
     const { moviesPath } = getUserPaths(request);
     const fileAbsPath = `${moviesPath}/${folder}/${fileName}`;
+
+    // Security: Verify the file path is within the user's movies directory
+    const resolvedPath = path.resolve(fileAbsPath);
+    const resolvedMoviesPath = path.resolve(moviesPath);
+
+    if (!resolvedPath.startsWith(resolvedMoviesPath)) {
+      logE(`Access denied: User attempted to access caption outside their directory: ${resolvedPath}`);
+      return sendError({
+        response,
+        message: "Access denied",
+        statusCode: 403,
+      });
+    }
+
     doCaption({ request, response, fileAbsPath });
   }
 
@@ -51,6 +66,20 @@ export function createCaptionsRouter({
     const { folder, fileName, parent } = request.params;
     const { seriesPath } = getUserPaths(request);
     const fileAbsPath = `${seriesPath}/${parent}/${folder}/${fileName}`;
+
+    // Security: Verify the file path is within the user's series directory
+    const resolvedPath = path.resolve(fileAbsPath);
+    const resolvedSeriesPath = path.resolve(seriesPath);
+
+    if (!resolvedPath.startsWith(resolvedSeriesPath)) {
+      logE(`Access denied: User attempted to access caption outside their directory: ${resolvedPath}`);
+      return sendError({
+        response,
+        message: "Access denied",
+        statusCode: 403,
+      });
+    }
+
     doCaption({ request, response, fileAbsPath });
   }
 

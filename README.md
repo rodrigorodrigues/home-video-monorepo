@@ -100,6 +100,11 @@ LOGIN_SECOND_RETRY_URL=http://auth-service:8080/api/authenticate
 
 # OAuth2 Integration
 OAUTH2_GOOGLE_URL=http://auth-service:8080/oauth2/authorization/google
+
+# Nextcloud Sync (Optional)
+NEXTCLOUD_SYNC_ENABLED=false
+NEXTCLOUD_DATA_PATH=/var/snap/nextcloud/common/nextcloud/data
+NEXTCLOUD_SYNC_EXISTING=false
 ```
 
 See `.env.docker.api.prod` for all available options.
@@ -173,6 +178,34 @@ The application features **automatic page updates** when video files are added o
 - Events filtered by username in multi-user mode
 - Reconnection: Max 5 attempts with 3-second delay
 
+### Nextcloud Sync (Optional)
+
+The application supports **automatic synchronization** with Nextcloud for seamless video management:
+
+- **Bidirectional Sync**: Automatically copies videos from Nextcloud to home-video and removes them when deleted
+- **User-Scoped Sync**: Each Nextcloud user's files sync to their corresponding home-video directory
+- **Real-Time Monitoring**: Detects file changes immediately using file system watching
+- **Supported Formats**: Only syncs video files (mp4, mkv, avi, mov, m4v)
+- **Safe Operation**: Skips broken symlinks and handles permission errors gracefully
+- **Configurable**: Enable/disable via `NEXTCLOUD_SYNC_ENABLED` environment variable
+
+**How it works**:
+1. Users upload videos via Nextcloud (web/mobile app)
+2. Videos are automatically copied to home-video's user directory
+3. Videos appear immediately in home-video web interface (via WebSocket updates)
+4. When videos are deleted from Nextcloud, they're removed from home-video too
+
+**Use Case**: Use Nextcloud as the upload interface and home-video as the streaming/viewing interface.
+
+**Configuration**:
+```bash
+NEXTCLOUD_SYNC_ENABLED=true
+NEXTCLOUD_DATA_PATH=/var/snap/nextcloud/common/nextcloud/data
+NEXTCLOUD_SYNC_EXISTING=false  # Set to true to sync existing files on startup
+```
+
+See [`docs/features/nextcloud-sync.md`](docs/features/nextcloud-sync.md) for detailed setup instructions.
+
 ## Documentation
 
 - Monorepo docs index: [`docs/README.md`](docs/README.md)
@@ -182,6 +215,8 @@ The application features **automatic page updates** when video files are added o
 - Google Drive + `rclone`: [`docs/storage/google-drive-rclone.md`](docs/storage/google-drive-rclone.md)
 - Backend media scanning: [`docs/backend/media-scanning.md`](docs/backend/media-scanning.md)
 - Authentication: [`docs/auth/authentication.md`](docs/auth/authentication.md)
+- Nextcloud sync: [`docs/features/nextcloud-sync.md`](docs/features/nextcloud-sync.md)
+- Multi-user security: [`docs/security/multi-user-isolation.md`](docs/security/multi-user-isolation.md)
 - Troubleshooting: [`docs/troubleshooting/common-issues.md`](docs/troubleshooting/common-issues.md)
 
 ## Legacy Docs

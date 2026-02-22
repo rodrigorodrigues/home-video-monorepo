@@ -1,8 +1,10 @@
 import express from "express";
+import path from "path";
 import { getMovieMap, getSeriesMap } from "../common/Util";
-import { imgProvider } from "./RouterUtil";
+import { imgProvider, sendError } from "./RouterUtil";
 import config from "../config";
 import { getUserVideoPath } from "../user/userDirectory.js";
+import { logE } from "../common/MessageUtil";
 
 const { moviesDir, seriesDir } = config();
 
@@ -25,6 +27,17 @@ function getImgFromSeries(req, response) {
   const userVideosPath = getUserVideosPath(req);
 
   const seriesMap = getSeriesMap();
+
+  // Security: Verify the requested ID exists in the user's series map
+  if (!seriesMap.byId[id]) {
+    logE(`Access denied: User attempted to access non-existent series image: ${id}`);
+    return sendError({
+      response,
+      message: "Image not found",
+      statusCode: 404,
+    });
+  }
+
   const { name, img } = seriesMap.byId[id];
 
   let binImg = imgProvider({ id, name, img, folder: seriesDir, userVideosPath });
@@ -32,11 +45,23 @@ function getImgFromSeries(req, response) {
   response.write(binImg, "binary");
   response.end(null, "binary");
 }
+
 function getImgFromMovie(req, response) {
   const { id } = req.params;
   const userVideosPath = getUserVideosPath(req);
 
   const MovieMap = getMovieMap();
+
+  // Security: Verify the requested ID exists in the user's movie map
+  if (!MovieMap.byId[id]) {
+    logE(`Access denied: User attempted to access non-existent movie image: ${id}`);
+    return sendError({
+      response,
+      message: "Image not found",
+      statusCode: 404,
+    });
+  }
+
   const { name, img } = MovieMap.byId[id];
 
   let binImg = imgProvider({ id, name, img, folder: moviesDir, userVideosPath });

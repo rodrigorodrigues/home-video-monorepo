@@ -37,7 +37,16 @@ export default function config() {
       result.PROTOCOL = windowRef.location.protocol.replace(":", "");
       result.PORT = currentPort;
       result.host = windowRef.location.hostname;
-      result.SERVER_URL = `${result.PROTOCOL}://${result.host}:${result.PORT}${publicUrl}`;
+
+      // Don't include default ports (80 for http, 443 for https) in URL
+      const shouldIncludePort = (result.PROTOCOL === "http" && currentPort !== "80" && currentPort !== "") ||
+                                 (result.PROTOCOL === "https" && currentPort !== "443" && currentPort !== "");
+
+      if (shouldIncludePort) {
+        result.SERVER_URL = `${result.PROTOCOL}://${result.host}:${result.PORT}${publicUrl}`;
+      } else {
+        result.SERVER_URL = `${result.PROTOCOL}://${result.host}${publicUrl}`;
+      }
       console.log(`[CONFIG] Production mode - Using window.location: ${result.SERVER_URL}`);
     } else {
       // Fallback for SSR or non-browser environments

@@ -3,6 +3,7 @@ import { loadRemoteJsonFile } from "../libs/HttpLib";
 import { setMoviesMap } from "../libs/MemoryLib";
 import { createFileWatcherService } from "../services/fileWatcherService.js";
 import { createWebSocketService } from "../services/websocketService.js";
+import { createNextcloudSyncService } from "../services/nextcloudSyncService.js";
 
 export async function fetchAndLogJsonData({
   remoteJsonUrl,
@@ -85,6 +86,29 @@ export function startServer({
 
       fileWatcher.startWatching();
 
+      // Initialize Nextcloud sync service
+      let nextcloudSync = null;
+      const nextcloudDataPath = env.NEXTCLOUD_DATA_PATH;
+      if (nextcloudDataPath) {
+        consoleRef.log('[NEXTCLOUD_SYNC] Initializing Nextcloud sync service...');
+        nextcloudSync = createNextcloudSyncService({
+          nextcloudDataPath,
+          homeVideoBasePath: appConfig.videosPath,
+          moviesDir: appConfig.moviesDir
+        });
+
+        // Start watching Nextcloud directories
+        nextcloudSync.startWatching();
+
+        // Optionally sync existing files on startup
+        if (env.NEXTCLOUD_SYNC_EXISTING === 'true') {
+          consoleRef.log('[NEXTCLOUD_SYNC] Syncing existing video files...');
+          nextcloudSync.syncExistingFiles().catch(err => {
+            consoleRef.error('[NEXTCLOUD_SYNC] Error syncing existing files:', err);
+          });
+        }
+      }
+
       // Initialize WebSocket server
       consoleRef.log('[WS] Initializing WebSocket server...');
       const publicUrl = (appConfig.publicUrl || '').replace(/\/$/, '');
@@ -101,6 +125,9 @@ export function startServer({
       server.on('close', () => {
         consoleRef.log('[SERVER] Shutting down...');
         fileWatcher.stopWatching();
+        if (nextcloudSync) {
+          nextcloudSync.stopWatching();
+        }
         wsService.close();
       });
     } else {

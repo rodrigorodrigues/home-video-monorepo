@@ -140,6 +140,26 @@ The application supports **real-time automatic page updates** when video files a
 
 **WebSocket Connection**: `ws://localhost:8081/home-video/ws` (or your configured PUBLIC_URL)
 
+### Nextcloud Sync Integration (Optional)
+
+The application supports **automatic synchronization** with Nextcloud for seamless video management:
+
+- **Bidirectional Sync**: Automatically copies new videos from Nextcloud to home-video and deletes them when removed from Nextcloud
+- **User-Scoped**: Each Nextcloud user's files sync to their corresponding home-video directory
+- **Video Format Detection**: Only syncs supported video formats (mp4, mkv, avi, mov, m4v)
+- **Real-Time Monitoring**: Uses file system watching to detect changes immediately
+- **Symlink Safe**: Skips broken symlinks and inaccessible directories
+- **Configurable**: Enable/disable via `NEXTCLOUD_SYNC_ENABLED` environment variable
+
+**How it works**:
+1. Monitors Nextcloud data directory for file changes (add/delete)
+2. Extracts username from Nextcloud path structure
+3. When video is added → Copies to `/data/home-video/<username>/Movies/`
+4. When video is deleted → Removes from `/data/home-video/<username>/Movies/`
+5. Integrates with file watcher and WebSocket for real-time UI updates
+
+**Use Case**: Users upload videos via Nextcloud mobile app → Videos automatically appear in home-video web interface
+
 ### Key Implementation Files
 
 **Authentication:**
@@ -163,10 +183,16 @@ The application supports **real-time automatic page updates** when video files a
 14. **`apps/web/src/hooks/useWebSocket.js`** - React WebSocket hook with auto-reconnect
 15. **`apps/web/src/components/video/components/VideoMainList.jsx`** - User-filtered real-time updates
 
+**Nextcloud Sync:**
+16. **`apps/api/src/services/nextcloudSyncService.js`** - Nextcloud to home-video synchronization service
+
 **Frontend:**
-16. **`apps/web/src/config.js`** - API URL configuration with PUBLIC_URL support
-17. **`apps/web/src/main/Routers.js`** - React Router with basename configuration
-18. **`apps/web/src/services/Api.js`** - API client with getCurrentUser() for WebSocket filtering
+17. **`apps/web/src/config.js`** - API URL configuration with PUBLIC_URL support
+18. **`apps/web/src/main/Routers.js`** - React Router with basename configuration
+19. **`apps/web/src/services/Api.js`** - API client with getCurrentUser() for WebSocket filtering
+
+**Security:**
+20. **`docs/security/multi-user-isolation.md`** - Multi-user security and isolation documentation
 
 ### Environment Configuration
 
@@ -205,6 +231,11 @@ OAUTH2_GOOGLE_URL=              # Google OAuth2 authorization URL (e.g., http://
 PUBLIC_URL=/home-video           # URL prefix for app and API endpoints
 MULTI_USER_ENABLED=false        # Enable per-user video directories
 FILE_WATCHER_ENABLED=true       # Enable file system monitoring and WebSocket updates
+
+# Nextcloud Sync (Optional)
+NEXTCLOUD_SYNC_ENABLED=false    # Enable Nextcloud to home-video sync
+NEXTCLOUD_DATA_PATH=            # Path to Nextcloud data directory (e.g., /var/snap/nextcloud/common/nextcloud/data)
+NEXTCLOUD_SYNC_EXISTING=false   # Sync existing files on startup
 ```
 
 ---
